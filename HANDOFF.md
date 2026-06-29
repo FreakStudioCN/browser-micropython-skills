@@ -19,7 +19,7 @@ Base commit `bfb79a1`. **Work is COMMITTED + PUSHED**: `1ad02b6` (migration + or
 
 # ⭐ LATEST — 2026-06-29 session (close-out): firmware chain + docs cleanup + simulate → MicroPython-WASM
 
-> This section supersedes the round-1–7 "Next Steps" where they conflict. It closes out the remaining open items from the prior session. **Work is NOT yet committed** — left for the user to trigger. Working tree has: M `README.md`, M `browser_skill_contract/cli.py`, M `browser_skill_contract/workflow.py`, M `tests/test_main_browser_workflow.py`, M `upy-simulate-browser/SKILL.md`, D (4 stale files).
+> This section supersedes the round-1–7 "Next Steps" where they conflict. It closes out the remaining open items from the prior session. **Committed + pushed to `main`:** `11cf54c` (the close-out) and `801c69b` (Codex round-2 MicroPython fixes). Working tree clean.
 
 ## What this session closed
 
@@ -36,7 +36,7 @@ Base commit `bfb79a1`. **Work is COMMITTED + PUSHED**: `1ad02b6` (migration + or
 - `python -m pytest tests -q` → **42 passed**; `cli dry-run-workflow` → `success` and now exercises all 4 firmware kinds (`firmware-flash-plan.json` artifact still produced).
 - All 3 leak scans (host-shell / host-spawn / host-python) → **empty**; fidelity count → **16** (unchanged).
 - **Codex review (round 1, full diff):** domain retention CLEAN, firmware chain CLEAN, docs deletions CLEAN. Raised 2 MUST-FIX on the simulate file — but both assumed Pyodide (rich `Live` defaults; `asyncio.run()` vs already-running JS loop). Both **dissolved** by the MicroPython-WASM correction (rich removed; `asyncio.run` is idiomatic for MicroPython-WASM and the provider owns entry scheduling).
-- **Codex review (round 2):** focused re-verify of the simulate file for MicroPython-WASM correctness — see verdict appended below / in session notes.
+- **Codex review (round 2):** focused re-verify of the simulate file for MicroPython-WASM correctness → items "no CPython-only assumptions", "asyncio entry sound", "domain intact" all **CLEAN**; 2 MUST-FIX on the example code (`gen_bmp280` used `math.*` without `import math`; guidance used `os.path.join`, which MicroPython lacks) — both fixed in `801c69b` (plain string path; added `import math`). `pytest` 42 passed, leak scans empty after the fix.
 
 ## What Did NOT Work / lesson
 
