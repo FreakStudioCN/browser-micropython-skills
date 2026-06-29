@@ -1,0 +1,459 @@
+{
+    "schema_version":  1,
+    "repo_purpose":  "Blockless Web Builder MicroPython browser skill map based on FreakStudioCN/MicroPython_Skills reference skills.",
+    "allowed_primitives":  [
+                               "approval_request",
+                               "file_operation",
+                               "device_command",
+                               "browser_validate",
+                               "phase_complete"
+                           ],
+    "skills":  [
+                   {
+                       "source_skills":  [
+                                             "fetch-doc"
+                                         ],
+                       "browser_skill":  "fetch-doc-browser",
+                       "primitives":  [
+                                          "browser_validate",
+                                          "file_operation"
+                                      ],
+                       "browser_validate_kinds":  [
+                                                      "doc_fetch",
+                                                      "package_fetch"
+                                                  ]
+                   },
+                   {
+                       "source_skills":  [
+                                             "mpremote-device-interaction"
+                                         ],
+                       "browser_skill":  "webserial-device-interaction-browser",
+                       "primitives":  [
+                                          "approval_request",
+                                          "device_command",
+                                          "phase_complete"
+                                      ],
+                       "browser_validate_kinds":  [
+
+                                                  ]
+                   },
+                   {
+                       "source_skills":  [
+                                             "mpremote-file-transfer"
+                                         ],
+                       "browser_skill":  "webserial-file-transfer-browser",
+                       "primitives":  [
+                                          "approval_request",
+                                          "device_command",
+                                          "file_operation",
+                                          "phase_complete"
+                                      ],
+                       "browser_validate_kinds":  [
+                                                      "project_files"
+                                                  ]
+                   },
+                   {
+                       "source_skills":  [
+                                             "mpremote-live-session"
+                                         ],
+                       "browser_skill":  "webserial-live-session-browser",
+                       "primitives":  [
+                                          "approval_request",
+                                          "device_command",
+                                          "file_operation",
+                                          "phase_complete"
+                                      ],
+                       "browser_validate_kinds":  [
+                                                      "device_test_plan"
+                                                  ]
+                   },
+                   {
+                       "source_skills":  [
+                                             "review"
+                                         ],
+                       "browser_skill":  "review-browser",
+                       "primitives":  [
+                                          "browser_validate",
+                                          "file_operation",
+                                          "phase_complete"
+                                      ],
+                       "browser_validate_kinds":  [
+                                                      "review_context",
+                                                      "review_verify"
+                                                  ]
+                   },
+                   {
+                       "source_skills":  [
+                                             "upy-analyze",
+                                             "upy-analyze-plugin"
+                                         ],
+                       "browser_skill":  "upy-analyze-browser",
+                       "primitives":  [
+                                          "approval_request",
+                                          "file_operation",
+                                          "browser_validate",
+                                          "phase_complete"
+                                      ],
+                       "browser_validate_kinds":  [
+                                                      "manifest",
+                                                      "manifest_phase",
+                                                      "package_fetch",
+                                                      "doc_fetch"
+                                                  ]
+                   },
+                   {
+                       "source_skills":  [
+                                             "upy-select-hw",
+                                             "upy-select-hw-plugin"
+                                         ],
+                       "browser_skill":  "upy-select-hw-browser",
+                       "primitives":  [
+                                          "approval_request",
+                                          "device_command",
+                                          "file_operation",
+                                          "browser_validate",
+                                          "phase_complete"
+                                      ],
+                       "browser_validate_kinds":  [
+                                                      "select_hw_manifest",
+                                                      "manifest_phase"
+                                                  ]
+                   },
+                   {
+                       "source_skills":  [
+                                             "upy-flash-mpy-firmware-plugin"
+                                         ],
+                       "browser_skill":  "upy-flash-mpy-firmware-browser",
+                       "primitives":  [
+                                          "approval_request",
+                                          "file_operation",
+                                          "browser_validate",
+                                          "phase_complete"
+                                      ],
+                       "browser_validate_kinds":  [
+                                                      "firmware_page_resolve",
+                                                      "firmware_download",
+                                                      "firmware_flash_plan",
+                                                      "firmware_flash_execute",
+                                                      "uf2_manual_confirm"
+                                                  ]
+                   },
+                   {
+                       "source_skills":  [
+                                             "upy-scaffold",
+                                             "upy-scaffold-plugin"
+                                         ],
+                       "browser_skill":  "upy-scaffold-browser",
+                       "primitives":  [
+                                          "approval_request",
+                                          "file_operation",
+                                          "browser_validate",
+                                          "phase_complete"
+                                      ],
+                       "browser_validate_kinds":  [
+                                                      "scaffold_generate",
+                                                      "scaffold_contract",
+                                                      "project_files",
+                                                      "python_syntax"
+                                                  ]
+                   },
+                   {
+                       "source_skills":  [
+                                             "upy-generate",
+                                             "upy-generate-plugin"
+                                         ],
+                       "browser_skill":  "upy-generate-browser",
+                       "primitives":  [
+                                          "approval_request",
+                                          "file_operation",
+                                          "browser_validate",
+                                          "phase_complete"
+                                      ],
+                       "browser_validate_kinds":  [
+                                                      "generate_quality",
+                                                      "python_syntax",
+                                                      "package_resolve",
+                                                      "upypi_resolve",
+                                                      "mpy_compile"
+                                                  ]
+                   },
+                   {
+                       "source_skills":  [
+                                             "upy-deploy",
+                                             "upy-deploy-plugin",
+                                             "upy-deploy-test"
+                                         ],
+                       "browser_skill":  "upy-deploy-browser",
+                       "primitives":  [
+                                          "approval_request",
+                                          "device_command",
+                                          "file_operation",
+                                          "browser_validate",
+                                          "phase_complete"
+                                      ],
+                       "browser_validate_kinds":  [
+                                                      "deploy_plan",
+                                                      "deploy_result_judge",
+                                                      "device_test_plan",
+                                                      "project_files"
+                                                  ]
+                   },
+                   {
+                       "source_skills":  [
+                                             "upy-autofix"
+                                         ],
+                       "browser_skill":  "upy-autofix-browser",
+                       "primitives":  [
+                                          "approval_request",
+                                          "device_command",
+                                          "file_operation",
+                                          "browser_validate",
+                                          "phase_complete"
+                                      ],
+                       "browser_validate_kinds":  [
+                                                      "autofix_triage",
+                                                      "hardware_sanity"
+                                                  ]
+                   },
+                   {
+                       "source_skills":  [
+                                             "upy-wiring"
+                                         ],
+                       "browser_skill":  "upy-wiring-browser",
+                       "primitives":  [
+                                          "approval_request",
+                                          "file_operation",
+                                          "browser_validate",
+                                          "phase_complete"
+                                      ],
+                       "browser_validate_kinds":  [
+                                                      "wiring",
+                                                      "wiring_render",
+                                                      "diagram_mermaid"
+                                                  ]
+                   },
+                   {
+                       "source_skills":  [
+                                             "upy-diagram"
+                                         ],
+                       "browser_skill":  "upy-diagram-browser",
+                       "primitives":  [
+                                          "file_operation",
+                                          "browser_validate",
+                                          "phase_complete"
+                                      ],
+                       "browser_validate_kinds":  [
+                                                      "diagram_mermaid",
+                                                      "diagram_render"
+                                                  ]
+                   },
+                   {
+                       "source_skills":  [
+                                             "upy-simulate"
+                                         ],
+                       "browser_skill":  "upy-simulate-browser",
+                       "primitives":  [
+                                          "file_operation",
+                                          "browser_validate",
+                                          "phase_complete"
+                                      ],
+                       "browser_validate_kinds":  [
+                                                      "simulate_run",
+                                                      "generate_quality",
+                                                      "python_syntax"
+                                                  ]
+                   },
+                   {
+                       "source_skills":  [
+                                             "upy-gen-driver"
+                                         ],
+                       "browser_skill":  "upy-gen-driver-browser",
+                       "primitives":  [
+                                          "approval_request",
+                                          "device_command",
+                                          "file_operation",
+                                          "browser_validate",
+                                          "phase_complete"
+                                      ],
+                       "browser_validate_kinds":  [
+                                                      "doc_extract_pdf",
+                                                      "arduino_convert",
+                                                      "package_fetch",
+                                                      "generate_quality",
+                                                      "python_syntax"
+                                                  ]
+                   },
+                   {
+                       "source_skills":  [
+                                             "upy-gen-main"
+                                         ],
+                       "browser_skill":  "upy-gen-main-browser",
+                       "primitives":  [
+                                          "file_operation",
+                                          "browser_validate",
+                                          "phase_complete"
+                                      ],
+                       "browser_validate_kinds":  [
+                                                      "python_syntax",
+                                                      "project_files"
+                                                  ]
+                   },
+                   {
+                       "source_skills":  [
+                                             "upy-gen-pkg"
+                                         ],
+                       "browser_skill":  "upy-gen-pkg-browser",
+                       "primitives":  [
+                                          "file_operation",
+                                          "browser_validate",
+                                          "phase_complete"
+                                      ],
+                       "browser_validate_kinds":  [
+                                                      "package_resolve",
+                                                      "upypi_resolve",
+                                                      "package_fetch"
+                                                  ]
+                   },
+                   {
+                       "source_skills":  [
+                                             "upy-gen-readme"
+                                         ],
+                       "browser_skill":  "upy-gen-readme-browser",
+                       "primitives":  [
+                                          "file_operation",
+                                          "browser_validate",
+                                          "phase_complete"
+                                      ],
+                       "browser_validate_kinds":  [
+                                                      "project_files"
+                                                  ]
+                   },
+                   {
+                       "source_skills":  [
+                                             "upy-norm-driver"
+                                         ],
+                       "browser_skill":  "upy-norm-driver-browser",
+                       "primitives":  [
+                                          "file_operation",
+                                          "browser_validate",
+                                          "phase_complete"
+                                      ],
+                       "browser_validate_kinds":  [
+                                                      "python_syntax",
+                                                      "generate_quality"
+                                                  ]
+                   },
+                   {
+                       "source_skills":  [
+                                             "upy-norm-main"
+                                         ],
+                       "browser_skill":  "upy-norm-main-browser",
+                       "primitives":  [
+                                          "file_operation",
+                                          "browser_validate",
+                                          "phase_complete"
+                                      ],
+                       "browser_validate_kinds":  [
+                                                      "python_syntax",
+                                                      "project_files"
+                                                  ]
+                   },
+                   {
+                       "source_skills":  [
+                                             "upy-norm-pkg"
+                                         ],
+                       "browser_skill":  "upy-norm-pkg-browser",
+                       "primitives":  [
+                                          "file_operation",
+                                          "browser_validate",
+                                          "phase_complete"
+                                      ],
+                       "browser_validate_kinds":  [
+                                                      "package_resolve",
+                                                      "project_files"
+                                                  ]
+                   },
+                   {
+                       "source_skills":  [
+                                             "upy-opt-driver"
+                                         ],
+                       "browser_skill":  "upy-opt-driver-browser",
+                       "primitives":  [
+                                          "device_command",
+                                          "file_operation",
+                                          "browser_validate",
+                                          "phase_complete"
+                                      ],
+                       "browser_validate_kinds":  [
+                                                      "python_syntax",
+                                                      "generate_quality"
+                                                  ]
+                   },
+                   {
+                       "source_skills":  [
+                                             "upy-slim-driver"
+                                         ],
+                       "browser_skill":  "upy-slim-driver-browser",
+                       "primitives":  [
+                                          "file_operation",
+                                          "browser_validate",
+                                          "phase_complete"
+                                      ],
+                       "browser_validate_kinds":  [
+                                                      "python_syntax",
+                                                      "generate_quality"
+                                                  ]
+                   },
+                   {
+                       "source_skills":  [
+                                             "upy-pack-driver"
+                                         ],
+                       "browser_skill":  "upy-pack-driver-browser",
+                       "primitives":  [
+                                          "file_operation",
+                                          "browser_validate",
+                                          "phase_complete"
+                                      ],
+                       "browser_validate_kinds":  [
+                                                      "package_resolve",
+                                                      "project_files"
+                                                  ]
+                   },
+                   {
+                       "source_skills":  [
+                                             "upy-pkg-guide"
+                                         ],
+                       "browser_skill":  "upy-pkg-guide-browser",
+                       "primitives":  [
+                                          "browser_validate",
+                                          "file_operation",
+                                          "phase_complete"
+                                      ],
+                       "browser_validate_kinds":  [
+                                                      "package_fetch",
+                                                      "package_resolve",
+                                                      "awesome_micropython_search",
+                                                      "doc_fetch"
+                                                  ]
+                   },
+                   {
+                       "source_skills":  [
+                                             "upy-project"
+                                         ],
+                       "browser_skill":  "upy-project-browser",
+                       "primitives":  [
+                                          "approval_request",
+                                          "device_command",
+                                          "file_operation",
+                                          "browser_validate",
+                                          "phase_complete"
+                                      ],
+                       "browser_validate_kinds":  [
+                                                      "project_files",
+                                                      "manifest_phase",
+                                                      "deploy_plan",
+                                                      "generate_quality"
+                                                  ]
+                   }
+               ]
+}

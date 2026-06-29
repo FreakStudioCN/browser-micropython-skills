@@ -1,0 +1,74 @@
+{
+  "protocol_version": "1.0",
+  "type": "phase_complete",
+  "phase": "upy-deploy-plugin",
+  "session_id": "demo-session",
+  "payload": {
+    "phase": "upy-deploy-plugin",
+    "result": "success",
+    "summary": "Project was uploaded and the user chose to finish and upload it to the project library.",
+    "next_phase": "project-library-upload",
+    "deploy_result": {
+      "status": "PASS_WITH_WARNINGS",
+      "strategy": "clean_then_upload",
+      "port": "COM3",
+      "serial_excerpt": "",
+      "serial_output_bytes": 0,
+      "device_tests": {
+        "status": "success",
+        "test_count": 2,
+        "passed": 2,
+        "failed": 0,
+        "tests": []
+      },
+      "errors": [],
+      "warnings": [
+        "serial capture produced no output"
+      ]
+    },
+    "manifest_content": {
+      "schema_version": "1.0",
+      "phase": "upy-deploy-plugin",
+      "project_name": "temperature_alarm",
+      "requirements": {
+        "description": "Alarm when temperature or humidity exceeds configured thresholds."
+      },
+      "devices": [
+        {
+          "name": "SHT30",
+          "type": "temperature_humidity_sensor",
+          "interface": "I2C"
+        }
+      ],
+      "mcu": {
+        "model": "ESP32-C3",
+        "board_id": "esp32-c3-devkitm"
+      },
+      "generate": {
+        "git": {
+          "commit": "0123456789abcdef0123456789abcdef01234567"
+        }
+      },
+      "deploy": {
+        "status": "PASS_WITH_WARNINGS",
+        "strategy": "clean_then_upload",
+        "port": "COM3"
+      }
+    },
+    "artifacts": [
+      {
+        "type": "file_list",
+        "title": "Deploy artifacts",
+        "files": [
+          {"path": "sessions/demo-session/deploy_result.json", "status": "new"},
+          {"path": "sessions/demo-session/serial_capture.log", "status": "new"},
+          {"path": "sessions/demo-session/device_tests_result.json", "status": "new"}
+        ]
+      }
+    ],
+    "errors": [],
+    "warnings": [
+      "serial capture produced no output"
+    ]
+  }
+}
