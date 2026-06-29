@@ -11,9 +11,9 @@ starts from a copy of its content-rich upstream `SKILL.md`, keeps every rule ver
 execution layer** to Blockless primitives (`file_operation` / `device_command` / `browser_validate` /
 `approval_request` / `phase_complete`). It also encodes the upstream **two-spine / three-tier** structure as data.
 
-Target repo: `C:\Users\Haipeng Wu\Desktop\blockless\browser-micropython-skills-new`
-Upstream content source (already cloned on disk): `C:\Users\Haipeng Wu\Desktop\blockless\browser-micropython-skills`
-Base commit: `bfb79a1 initial Blockless MicroPython browser skills`. **All work is UNCOMMITTED** (42 files changed).
+Target repo: `C:\Users\Haipeng Wu\Desktop\blockless\browser-micropython-skills-new` (remote `FreakStudioCN/browser-micropython-skills`, branch `main`).
+Reference of truth (the 1:1 source — confirmed by the user): `FreakStudioCN/MicroPython_Skills` = on disk `C:\Users\Haipeng Wu\Desktop\blockless\MicroPython_Skills_upstream` (canonical, has the remote; also vendored at `cursor_for_hardware/third_party/MicroPython_Skills` — **never edit third_party/**). The no-remote clone `…/browser-micropython-skills` was the original content source (redundant now).
+Base commit `bfb79a1`. **Work is COMMITTED + PUSHED**: `1ad02b6` (migration + orchestration metadata + host-execution scrub) and `5fbaf2a` (1:1 audit — restored dropped domain contracts in 7 skills). Working tree clean.
 
 ## Post-handoff correction (2026-06-28) — one skill was only half-migrated
 
@@ -65,9 +65,37 @@ what runtime the `browser_validate (simulate_run)` **provider** actually offers 
 provider implementations are explicitly out of scope this pass (see Next Steps #5). Resolve the visualization story when the
 `simulate_run` provider is built; left as-is intentionally.
 
-## Current Progress — COMPLETE and verified (pending commit)
+## 1:1 capability audit (2026-06-28, round 4) — restored dropped domain contracts; COMMITTED + PUSHED (`5fbaf2a`)
 
-All 27 skills migrated, cross-cutting metadata added, two rounds of Codex review done and all findings fixed.
+The user asked to re-scan all 27 browser skills **one-by-one against the reference of truth `FreakStudioCN/MicroPython_Skills`**
+(`MicroPython_Skills_upstream/`) and fix any skill that dropped domain content during migration (execution-only swap; the
+upstream is "correct", ours must mirror it). Method: a line-count coverage scan flagged the 2 dramatically-thin skills, then a
+**comprehensive Codex 1:1 audit across all 27 pairs** found the rest. **7 skills had over-thinned domain knowledge** — host
+mechanics were cut correctly, but browser-relevant domain *contracts* went with them. All restored (execution still on the 5
+primitives), **20 confirmed already-equivalent**:
+
+- `review-browser` — Domain(12)/Severity(3, was wrongly "blocking/non-blocking")/Component(8) taxonomies + verdict types
+  (confirmed/partially_valid/false_positive/inconclusive) + finding format + data scope.
+- `upy-flash-mpy-firmware-browser` — 板卡事实 firmware-resolution field-priority table + "don't trust cached `latest_version` /
+  don't build URL from `display_name`/`board_id`" rules.
+- `upy-deploy-browser` — deployment-strategy taxonomy (`upload_only`/`clean_then_upload`/`erase_then_upload`) + destructive
+  approval gates (`confirm_clean`/`confirm_erase`/`run_device_tests`) + 3-level verdicts incl `PASS_WITH_WARNINGS` (empty
+  serial ≠ FAIL) + forbidden-artifact rules + error→cause table + structured `error_context` handoff.
+- `upy-select-hw-browser` — board-facts source-of-truth + MCU candidate ranking + `restricted_gpio` severity table +
+  `pinout[].type` enum + pinout field table + `pin_decisions`/`deviation`/`reason_code` model + board_unavailable/pin_plan_review gates.
+- `upy-generate-browser` — supplement-routing + cloud/API integration safety (no real tokens in code) + `doc_evidence` +
+  `runtime_dependencies` + production `deploy_plan` (source_only/upload_exclude) + partial/failed (retryable) judgment.
+- `upy-analyze-browser` — driver-source classification guardrails (builtin_runtime vs micropython_lib vs upypi priority;
+  `none`/`local` rules; decompose device-families) + minimum manifest-content delivery fields.
+- `upy-scaffold-browser` — `scaffold_config` item_groups + module-id→output mapping + scheduler rec rules + invalid combos +
+  `Scheduler` timer_id port rules + GPIO-direction-from-pinout + startup fatal guard + final file-manifest contract.
+
+`pytest` → **42 passed**; host-execution / host-python regex scans empty. The gate caught my own one over-restoration (a
+`.flake8` host-lint rule in scaffold) → removed (browser lint is `browser_validate (python_syntax/scaffold_contract)`, not host flake8).
+
+## Current Progress — migration COMPLETE, committed + pushed
+
+All 27 skills migrated, cross-cutting metadata added, host-execution scrubbed (rounds 1-3), 1:1 domain audit done (round 4).
 
 - **27/27 `*-browser/SKILL.md`** carry full upstream domain content with execution swapped. Fidelity: skills
   with rule fingerprints (`P0`/`ISR`/`__slots__`/`docstring`/`viper`/`memoryview`) rose **0 → 17**; total
@@ -98,6 +126,13 @@ Verification (run from the target repo): `python -m pytest tests -q` → **42 pa
   twice that the narrow 8-token scan missed.
 - **Broadening the gate test** to encode Codex's findings (pip/uv/`python g:`/fuser/mpy-dev/`skill(`/`g:/`/etc.)
   makes the leakage permanently regression-guarded.
+- **1:1 completeness audit = line-count proxy → Codex deep-diff.** A quick `browser_lines / upstream_lines` ratio per
+  skill cheaply flags the egregiously-thin ones (`review` 0.18×, `flash` 0.16×); a single comprehensive Codex 1:1 pass over
+  all 27 pairs then catches the same-length-but-content-swapped cases the ratio misses (it found 5 more: deploy/select-hw/
+  generate/analyze/scaffold). Skills where browser ≥ upstream size are almost never gaps (content preserved + browser
+  sections added). Restore **domain contracts** (taxonomies, approval gates, structured-error/decision models, result
+  verdicts, field-priority tables) but NOT plugin-protocol mechanics (message payloads, host scripts) — and re-run the gate,
+  which catches over-restoration (it flagged a `.flake8` host-lint rule I wrongly carried over).
 
 ## What Did NOT Work
 
@@ -124,19 +159,27 @@ Verification (run from the target repo): `python -m pytest tests -q` → **42 pa
 
 ## Next Steps
 
-1. **Optional final Codex confirmation**: one more `codex:rescue --wait` pass to confirm the round-2 fixes close
-   cleanly (the broadened gate already encodes them). Then commit.
-2. **Commit** (only when the user says so; work on `bfb79a1` base, do not force-push). Suggested message scope:
-   "migrate upstream domain content into 27 browser skills + orchestration metadata; broaden forbidden gate".
-3. **Deferred (Codex MUST-FIX #7, by decision)**: the reference `browser_skill_contract/workflow.py` firmware
-   phase models only `firmware_flash_plan`, not the full resolve→download→plan→approval→execute. It's a happy-path
-   smoke test, not the spec; expand only if the reference harness should mirror the full contract. Would also need
-   the CLI dry-run `advertised_kinds` set + `firmware_provider` capability to cover the added kinds.
-4. **Known-acceptable residue**: `COM3` / `{port}` appear as `device_command` *arguments* (port handles the
-   binding supplies), not host-shell execution — left intentionally.
-5. **Out of scope this pass** (separate future effort): deepening `browser_validate` *provider implementations*
-   (turning upstream helper-script logic into real network/USB/WASM/firmware providers). This pass migrated docs +
-   reused existing kinds only.
+Migration, host-execution scrub, and the 1:1 domain audit are **done, committed, and pushed**. Remaining items are all
+deferred-by-decision or future scope — nothing is blocking:
+
+1. **Optional: one more Codex 1:1 re-verify of the 7 round-4 restorations** before relying on them in anger (they were
+   verified against the upstream sections read directly + the gate, but a fresh `codex:rescue` pass over just those 7 skills
+   would confirm the domain translations are faithful and no plugin-protocol mechanics leaked in).
+2. **Deferred (Codex MUST-FIX #7, by decision)**: the reference `browser_skill_contract/workflow.py` firmware phase models
+   only `firmware_flash_plan`, not the full resolve→download→plan→approval→execute. Happy-path smoke test, not the spec;
+   expand only if the reference harness should mirror the full contract (also needs the CLI dry-run `advertised_kinds` set +
+   `firmware_provider` capability).
+3. **Deferred (design question, NOT a leak)**: `upy-simulate-browser` still *generates* sim code importing host
+   `threading`/`rich`/`tkinter`; correctness depends on what the `simulate_run` **provider** runtime offers. Resolve when
+   that provider is built.
+4. **Known-acceptable residue**: `COM3` / `{port}` appear as `device_command` *arguments* (port handles the binding
+   supplies), not host-shell execution — left intentionally.
+5. **Out of scope this pass** (separate future effort): deepening `browser_validate` *provider implementations* (turning
+   upstream helper-script logic into real network/USB/WASM/firmware providers). This pass migrated docs + reused existing
+   kinds only.
+6. **Dropped by user**: the "delete the failed leftover skill repos" task — user said to forget it. (For reference, candidate
+   leftovers were `…/browser-micropython-skills` clone and the empty `…/blockless-project`; **never** touch the frozen
+   `cursor_for_hardware` = `mpy-hardware-extension`/`mpyhw-api` stack, `MicroPython_Skills_upstream`, or this repo.)
 
 ## Verification commands (from the target repo)
 
@@ -151,7 +194,8 @@ grep -rniE "os\.fork|execvp|Popen|pty\.openpty|termios|pexpect|\"mpremote\"" *-b
 # host CPython-invocation scan (must be empty) — PCRE, excludes micropython/cpython/python_syntax/"Python 3.x" prose.
 # Canonical gate is tests/test_browser_conversion_contract.py::HOST_PYTHON_INVOCATION (also catches bare `C:/` + bare `x.py`):
 grep -rnP "(?<![a-z])python[0-9]? +(?:-|/|[.]|[{]|\"|'|[a-z]:/|[\w.]+/|[\w.]+[.]py)" *-browser/SKILL.md
-# content-fidelity (expect ~17, was 0):
+# content-fidelity (expect 16, was 0; dropped 17→16 in round 4 when review-browser's informal "ISR"
+# example was replaced by the full formal review taxonomy — cosmetic, the skill is richer, not thinner):
 grep -rlE "P0|ISR|__slots__|docstring|viper|memoryview|const\(\)" *-browser/SKILL.md | wc -l
-# Codex (foreground ONLY): codex:rescue --wait <review task>
+# Codex (foreground ONLY): codex:rescue --wait <review task>   (--background is broken in this env, see "What Did NOT Work")
 ```
