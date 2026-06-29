@@ -17,7 +17,57 @@ Base commit `bfb79a1`. **Work is COMMITTED + PUSHED**: `1ad02b6` (migration + or
 
 ---
 
-# ⭐ LATEST — 2026-06-29 session (close-out): firmware chain + docs cleanup + simulate → MicroPython-WASM
+# ⭐ LATEST — 2026-06-29 session (aux-content re-audit + domain restorations); COMMITTED + PUSHED
+
+> Newest close-out. Supersedes earlier sections where they conflict. **Most important reversal:** the prior "don't resurrect the deleted plugin templates" stance is REVERSED for scaffold's device-side templates — they were re-bundled into the repo. HEAD on `main` = `a7fc28a` (pushed to `FreakStudioCN/browser-micropython-skills`), preceded by `292da42`. Working tree clean.
+
+## Goal (this session)
+
+The user again asked to re-verify, **file-by-file vs the reference of truth** (`MicroPython_Skills_upstream`), that every `*-browser` skill is a faithful 平移. This pass deliberately checked the dimension the prior rounds under-weighted: **upstream auxiliary domain content OUTSIDE SKILL.md** — `templates/` code bodies, `knowledge/*.pitfall.json`, `references/*.md`, `boards/*.json`. Then fix any gaps.
+
+## Current Progress (DONE — committed + pushed, working tree clean)
+
+Full re-audit of all 27 skills (6 parallel read-only reader-subagents by cluster + my own deep reads on the 4 aux-heavy skills + a Codex foreground gate). **Verdict: 20/27 faithful; 8 items fixed** in `292da42`, plus 1 Codex must-fix in `a7fc28a`:
+
+1. **scaffold (STRUCTURAL — highest impact).** The device-side code templates scaffold is responsible for emitting (`lib/scheduler/timer_sched.py` with the `Scheduler.add_task(callback, interval_ms, name)` API, `lib/logger` `install_rotating`, `lib/time_helper` `timed_function`/`timed_coro`, `tasks/maintenance.py`, `firmware/main_*.py.tmpl`) existed **NOWHERE** in the repo (deleted with the upstream dirs in `69fac8a`; the `generate_scaffold` validator in `validation.py` is a `print('hello')` stub) — yet `generate-browser` hard-codes their exact API. **Re-bundled 13 device-side templates** into `upy-scaffold-browser/templates/` (host `pc/` scripts EXCLUDED; the generated `README.md.tmpl` host `mpremote`/`python tools/` quick-start → Blockless-deploy prose). Wired scaffold SKILL.md Step 3 to them as **source-of-truth with a fixed-API contract table**, and grounded the scaffold↔generate contract on both ends (new generate rule "6a": call `add_task`, not `register`; `SCHEDULER_API_OR_TIMER_PORT_MISMATCH`).
+2. **autofix.** Restored the ESP32 crash-signature→P-level table (`Guru Meditation`/`rst cause:4`→P1, `OSError_12`/`[FAIL]`→P2, OSError_19/110→P1, Import/Attr/Name/Syntax→P0, MemoryError→P2 — from `upy-autofix/scripts/triage.py` ERROR_PATTERNS) + the `llm_analysis` reasoning checklist (`root_cause_assessment`/`eliminated_causes`/`suspected_causes{cause,probability,test_method}`/`knowledge_gap`/`recommended_next_step` — from `diagnostic_bundle_schema.json`).
+3. **analyze.** Restored the `devices[].behavior` structured enum (`role`/`event`/`active_level`/`idle_level` + the TTP223 active-low example) and the user-specified-vs-system-recommended implementation-family-lock rule.
+4. **select-hw.** Restored the "firmware version is cached-only, re-check at flash time" cross-skill rule (the upstream half of flash-browser's "don't trust cached `latest_version`") and the `structured_errors` `severity`(info/warning/error/fatal) + `code` enum. Browser relabels: `script_failed`→`validate_failed`, `flash_tool esptool.py`→`serial` (Codex confirmed both correct).
+5. **webserial-device-interaction.** Restored Pico USB VID:PID `2E8A:0005` + the reconnect-identity caveat.
+6. **webserial-file-transfer.** Scrubbed stale host serial paths — `/dev/tty*` (initial), then `c3`/`COM3` (Codex must-fix) — consolidating the per-platform port sections into one picker-based "Device selection" block.
+
+## What Worked
+
+- **Audit the AUX content, not just SKILL.md.** The `-plugin`-vs-base prose diff (round 5–7 lesson) is necessary but insufficient — the biggest gap (scaffold templates) lived entirely outside SKILL.md. Inventory every skill dir's non-SKILL.md files and classify each: host-script / protocol-envelope / provider-owned-DATA (correctly dropped) vs domain knowledge (must survive).
+- **`grep` the concrete artifact across the whole repo to prove "ungrounded."** `class Scheduler` / `def maintenance_tick` → NOT FOUND ANYWHERE, and `generate_scaffold` is a hello-world stub → conclusive that the scaffold↔generate API contract had no home in the repo.
+- **6 parallel read-only reader-subagents by cluster** (driver-family, gen/norm-small, diagram/wiring/webserial, heavy-flagged) returning strict per-skill verdicts gave fast skeptical breadth; I personally read the 4 aux-heavy skills (generate/scaffold/analyze/autofix) to SEE the content.
+- **Codex foreground gate, skill-by-skill** confirmed 7/8 clean and caught the one residual COM3 inconsistency self-review missed. A **process watcher** (poll codex node/CLI liveness, exit when gone) guarded against the known silent-evaporation failure mode — Codex ran clean this time (~8 min).
+- The leak gate (`tests/test_browser_conversion_contract.py`) ONLY scans `*-browser/SKILL.md` (glob), so bundling templates under a skill dir is safe — but keep templates host-token-clean **by hand** (the gate won't catch them).
+
+## What Did NOT Work / watch-outs
+
+- The earlier "don't resurrect the deleted plugin templates" decision left the scaffold↔generate API contract **ungrounded**. Reversed this session. ⚠️ If a future cleanup deletes `upy-scaffold-browser/templates/` again, generate's hard-coded `add_task`/`install_rotating` references break **silently** (PC tests pass; the device crashes per the `esp32_timer_scheduler_api` pitfall). Treat `upy-scaffold-browser/templates/` as load-bearing.
+- `COM3`-as-`device_command`-arg was previously deemed "acceptable residue" — but in a file that ALSO asserts "no host port paths" it's an internal contradiction (Codex flagged it for file-transfer). Acceptable where no picker-only claim is made (device-interaction), not where it is.
+
+## Next Steps (optional / deferred — nothing blocking)
+
+1. **Build the real `scaffold_generate` provider** so it emits the now-bundled `upy-scaffold-browser/templates/` verbatim (only `${...}` substitution). The reference validator in `validation.py` is still a hello-world stub; the fixed-API contract table in scaffold SKILL.md Step 3 is the spec.
+2. **Provider-owned upstream DATA, confirm ownership (intentionally NOT bundled):** `upy-generate-plugin/knowledge/micropython_official_library_index.json` (7359 lines) + `cloud_service_catalog.json` (242) → `package_resolve`/`upypi_resolve` + cloud providers; `upy-analyze-plugin/boards/*.json` (board-facts source-of-truth) → consumed by select-hw, not analyze.
+3. **Optional:** update the older sections' "all domain knowledge aligned" framing (now refined — aux content was the gap).
+
+## Verification (from the target repo)
+
+```bash
+python -m pytest tests -q -p no:cacheprovider                         # 42 passed
+python -m browser_skill_contract.cli dry-run-workflow --project-name blink   # status: success
+# 3 leak scans on *-browser/SKILL.md must be empty (exact greps in the older close-out section below):
+#   host-shell tokens / host-spawn (os.fork|execvp|Popen|pty.openpty|pexpect|"mpremote") / host-python PCRE
+grep -rniE "esptool|mpremote|/dev/tty|com[0-9]| g:/" upy-scaffold-browser/templates/   # bundled templates clean (empty)
+```
+
+---
+
+# 2026-06-29 session (prior close-out): firmware chain + docs cleanup + simulate → MicroPython-WASM
 
 > This section supersedes the round-1–7 "Next Steps" where they conflict. It closes out the remaining open items from the prior session. **Committed + pushed to `main`:** `11cf54c` (the close-out) and `801c69b` (Codex round-2 MicroPython fixes). Working tree clean.
 
