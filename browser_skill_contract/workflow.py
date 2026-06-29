@@ -102,9 +102,33 @@ def run_main_browser_workflow(
     if failed := _stop_if_not_success(select_phase):
         return _phase_result("select_hw", failed)
 
+    # Full firmware contract chain: resolve page -> download -> plan -> (approval) -> execute.
+    # The real upy-flash-mpy-firmware-browser skill gates flash_execute behind an
+    # approval_request (esp32_flash_confirm) and supports firmware_action variants
+    # (download_only / already_flashed / ...). This non-interactive smoke run cannot
+    # perform a human approval, so it exercises the download_and_flash happy path; a
+    # production host must still gate flash_execute on explicit user confirmation.
+    firmware_page = validator.run("firmware_page_resolve", {"board": board, "url": board.get("firmware_url", "")})
+    if failed := _stop_if_not_success(firmware_page):
+        return _phase_result("flash_firmware", failed)
+
+    firmware_download = validator.run(
+        "firmware_download",
+        {"name": f"{board['id']}-micropython.bin", "bytes": firmware_page.get("firmware_page", {}).get("bytes", 0)},
+    )
+    if failed := _stop_if_not_success(firmware_download):
+        return _phase_result("flash_firmware", failed)
+
     firmware = validator.run("firmware_flash_plan", {"manifest": manifest, "board": board})
     _persist_artifacts(artifact_store, firmware.get("artifacts", []))
     if failed := _stop_if_not_success(firmware):
+        return _phase_result("flash_firmware", failed)
+
+    firmware_execute = validator.run(
+        "firmware_flash_execute",
+        {"board": board, "firmware": firmware_download.get("firmware", {}), "plan": firmware.get("plan", {})},
+    )
+    if failed := _stop_if_not_success(firmware_execute):
         return _phase_result("flash_firmware", failed)
 
     firmware_phase = validator.run("manifest_phase", {"phase": "flash_firmware", "manifest": manifest})

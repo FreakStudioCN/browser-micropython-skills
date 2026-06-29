@@ -17,7 +17,39 @@ Base commit `bfb79a1`. **Work is COMMITTED + PUSHED**: `1ad02b6` (migration + or
 
 ---
 
-# ⭐ LATEST — 2026-06-29 session (rounds 5–7): full 平移 audit + plugin-sibling restoration + repo cleanup
+# ⭐ LATEST — 2026-06-29 session (close-out): firmware chain + docs cleanup + simulate → MicroPython-WASM
+
+> This section supersedes the round-1–7 "Next Steps" where they conflict. It closes out the remaining open items from the prior session. **Work is NOT yet committed** — left for the user to trigger. Working tree has: M `README.md`, M `browser_skill_contract/cli.py`, M `browser_skill_contract/workflow.py`, M `tests/test_main_browser_workflow.py`, M `upy-simulate-browser/SKILL.md`, D (4 stale files).
+
+## What this session closed
+
+1. **Firmware chain in the reference smoke harness (was Codex MUST-FIX #7 / deferred).** `run_main_browser_workflow` (`workflow.py`) now exercises the full firmware contract chain the `upy-flash-mpy-firmware-browser` skill declares: `firmware_page_resolve → firmware_download → firmware_flash_plan → firmware_flash_execute` (was only `firmware_flash_plan`). The handlers for all 5 firmware kinds already existed in `validation.py`; only the workflow call-chain + the CLI dry-run `advertised_kinds` set (`cli.py`) were stubbed — both now wired. A human `approval_request` (esp32_flash_confirm) can't run in a non-interactive smoke run, so the happy path is download_and_flash with a comment that production must still gate flash_execute on user confirmation. Tests updated: `_validator()` advertises the 3 new kinds; `..._returns_partial_without_firmware_provider` now expects `browser_validate.firmware_page_resolve` (the new first firmware step).
+
+2. **Docs hygiene (was Next Step #1).** Deleted 3 top-level guide `.md`s that were **byte-identical duplicates** of the `docs/reference/` copies (every skill cites the `docs/reference/` path; nothing cited top-level), plus the unreferenced `upy-select-hw-plugin-generic-modification-plan.md`. Updated `README.md` (dropped the false "upstream skill dirs retained" row + line-5 framing; firmware-chain line). `pytest` still 42 after deletion (the hardcoded-path tests reference only `adapters/`+`docs/`, not the deleted files).
+
+3. **`upy-analyze-browser` resource gap (was Next Step #2) — confirmed already closed.** Zero dangling `templates/*.json` refs; field shapes point to in-file models + `contracts/`. No browser skill bundles example-message files — all 27 use the same in-file+`contracts/` pattern, so analyze is consistent. Nothing to fix.
+
+4. **`upy-simulate-browser` host imports (was the big deferred design question) — REWRITTEN for the real runtime.** ⚠️ **KEY FINDING that corrected a wrong assumption:** the `simulate_run` provider's in-browser runtime is **MicroPython compiled to WASM** — the same runtime ViperIDE uses (`@micropython/micropython-webassembly-pyscript@^1.24.1`, confirmed in `viperide-fork/package.json`; ViperIDE also bundles `@xterm/xterm`, `@pybricks/mpy-cross-v6`, `@astral-sh/ruff-wasm-web`). It is **NOT Pyodide/CPython**. (The product is a webapp — everything runs in the browser, there is no host.) Consequence: the generated sim code was changed to target MicroPython-WASM — `thread` mode → cooperative `asyncio` (no OS threads), timer `SimScheduler` → `await asyncio.sleep` (not blocking `time.sleep`), **removed `tkinter` entirely** (no host GUI), and **removed `rich` entirely** (CPython-only, absent in MicroPython). Visualization is now plain `print()`/ANSI text rendered by the provider's in-browser terminal (xterm), or structured per-tick JSON for a canvas view; `--mode cli|gui` → `--mode terminal|canvas`. All domain sections (project classification, mock patterns, data generators, coverage dimensions, NL→mock mapping, PASS/WEAK_PASS/FAIL) left intact.
+
+## Verification (this session)
+
+- `python -m pytest tests -q` → **42 passed**; `cli dry-run-workflow` → `success` and now exercises all 4 firmware kinds (`firmware-flash-plan.json` artifact still produced).
+- All 3 leak scans (host-shell / host-spawn / host-python) → **empty**; fidelity count → **16** (unchanged).
+- **Codex review (round 1, full diff):** domain retention CLEAN, firmware chain CLEAN, docs deletions CLEAN. Raised 2 MUST-FIX on the simulate file — but both assumed Pyodide (rich `Live` defaults; `asyncio.run()` vs already-running JS loop). Both **dissolved** by the MicroPython-WASM correction (rich removed; `asyncio.run` is idiomatic for MicroPython-WASM and the provider owns entry scheduling).
+- **Codex review (round 2):** focused re-verify of the simulate file for MicroPython-WASM correctness — see verdict appended below / in session notes.
+
+## What Did NOT Work / lesson
+
+- **Assuming "browser WASM == Pyodide (CPython)".** First instinct was Pyodide, so the first simulate rewrite KEPT `rich` (reframed as xterm-rendered). Wrong: the stack reuses ViperIDE's runtime = **MicroPython-WASM**, where `rich`/CPython-only libs don't exist. First-principles check of `viperide-fork/package.json` (the dependency, not the assumption) is what caught it. Lesson: verify the actual runtime dependency before designing generated-code guidance against it.
+
+## Still open / deferred (unchanged from before, NOT blocking)
+
+- `simulate_run` **provider implementation** is still out of scope (this pass only fixed the *generated-code guidance* to target the right runtime). The provider's exact entrypoint convention (how it invokes `async main()`) is documented as "provider schedules the entry"; confirm when the provider is built.
+- `browser_skill_contract/workflow.py` is a happy-path smoke harness; it does not model the approval gate or firmware_action variants (download_only / already_flashed / …) — by design for a non-interactive dry run.
+
+---
+
+# 2026-06-29 session (rounds 5–7): full 平移 audit + plugin-sibling restoration + repo cleanup
 
 > This section supersedes the round 1–4 history below where they conflict. **Most important structural change: the repo no longer contains the old upstream/`-plugin`/`-test` source dirs** — they were deleted (commit `69fac8a`). The round 1–4 text below still refers to them as present; that history is preserved for context only.
 

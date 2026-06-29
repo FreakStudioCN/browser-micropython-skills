@@ -2,7 +2,7 @@
 
 Blockless Web Builder skill repository for browser-native MicroPython hardware workflows. Blockless Web Builder is the only target runtime. ViperIDE is only an implementation reference for browser serial and device techniques.
 
-This repository starts from the upstream `FreakStudioCN/MicroPython_Skills` skill tree, keeps those skills as reference material, and adds Blockless-first browser skills that run through the Blockless web product without leaking local shell assumptions.
+This repository is derived from the upstream `FreakStudioCN/MicroPython_Skills` skill tree (kept as a separate reference-of-truth repo, not vendored here) and provides Blockless-first browser skills that run through the Blockless web product without leaking local shell assumptions. The repo holds the 27 `*-browser/SKILL.md` skills plus contract infrastructure; the original upstream/plugin source skills are not kept here.
 
 ## Design Rule
 
@@ -41,8 +41,7 @@ render). A validation kind never replaces the rule checklist. Each skill states 
 | `contracts/` | JSON schemas and capability matrix. |
 | `adapters/` | Blockless runtime binding docs for device, validation, and artifact storage. |
 | `browser_skill_contract/` | Reference Python runtime for CI and contract tests. |
-| `*-browser/SKILL.md` | Blockless browser skill definitions. |
-| upstream skill dirs | Original upstream skills retained as conversion references. |
+| `*-browser/SKILL.md` | Blockless browser skill definitions (27 skills). |
 | `tests/` | Contract, runtime, validation, CLI, and workflow tests. |
 | `docs/plugin-capability-crosswalk.md` | Upstream/plugin capability to Blockless primitive mapping. |
 | `docs/skill-orchestration-map.md` | Two-spine / three-tier skill graph (orchestrators, phases, edges). |
@@ -80,7 +79,7 @@ The current implementation includes:
 - In-memory project artifact store.
 - Default browser validation router registration for all 33 declared validation kinds. Deterministic providers run in the reference runtime; Blockless runtime providers return structured partial results until provider state is supplied.
 - Fake device binding for contract tests and dry runs.
-- Reference analyze -> select-hw -> firmware readiness/flash plan -> scaffold -> generate -> deploy workflow.
+- Reference analyze -> select-hw -> firmware (page resolve -> download -> flash plan -> flash execute) -> scaffold -> generate -> deploy workflow.
 
 ## Blockless Runtime States
 

@@ -8,7 +8,10 @@ def _validator(extra_capabilities=None):
         "manifest",
         "manifest_phase",
         "select_hw_manifest",
+        "firmware_page_resolve",
+        "firmware_download",
         "firmware_flash_plan",
+        "firmware_flash_execute",
         "scaffold_generate",
         "scaffold_contract",
         "generate_quality",
@@ -137,7 +140,10 @@ def test_main_browser_workflow_returns_partial_without_firmware_provider():
             "manifest",
             "manifest_phase",
             "select_hw_manifest",
+            "firmware_page_resolve",
+            "firmware_download",
             "firmware_flash_plan",
+            "firmware_flash_execute",
             "scaffold_generate",
             "scaffold_contract",
             "generate_quality",
@@ -162,5 +168,5 @@ def test_main_browser_workflow_returns_partial_without_firmware_provider():
 
     assert result["status"] == "partial"
     assert result["phase"] == "flash_firmware"
-    assert result["capability_required"] == "browser_validate.firmware_flash_plan"
+    assert result["capability_required"] == "browser_validate.firmware_page_resolve"
 
