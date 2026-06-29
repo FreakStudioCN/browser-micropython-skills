@@ -253,9 +253,9 @@ micropython-lib 标准库（collections、os、json、re、hashlib 等）
 }
 ```
 
-## 三种安装方式（生成 package.json 后告知用户）
+## 两种安装方式（生成 package.json 后告知用户）
 
-生成完成后，附上对应该包的三种安装命令供用户参考：
+生成完成后，附上对应该包的两种安装命令供用户参考：
 
 ```python
 # 方式一：mip（在设备上运行）
@@ -276,7 +276,7 @@ mip.install("github:FreakStudioCN/GraftSense-Drivers-MicroPython/sensors/{包目
 - {模块名}：github:org/repo
 ```
 
-最后附三种安装方式命令（替换 `{包目录名}` 为实际目录名）。
+最后附两种安装方式命令（替换 `{包目录名}` 为实际目录名）。
 
 
 ## 完整规范参考

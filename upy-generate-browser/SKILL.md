@@ -396,7 +396,7 @@ _log = getLogger("main")
 
 只测硬件可用性，不测业务逻辑。
 
-**只用 MicroPython unittest 支持的 assert 方法**（`assertTrue`、`assertEqual`、`assertIsNotNone`、`assertRaises`），**禁止使用** `assertIsInstance`、`assertIn`、`assertNotIn`、`assertGreater` 等 CPython 扩展。
+**只用 MicroPython unittest 支持的 assert 方法**（`assertEqual`/`assertNotEqual`、`assertTrue`/`assertFalse`、`assertIs`/`assertIsNot`、`assertIsNone`/`assertIsNotNone`、`assertIn`、`assertIsInstance`、`assertLessEqual`/`assertGreaterEqual`、`assertAlmostEqual`/`assertNotAlmostEqual`、`assertRaises`、`assertWarns`），**禁止使用** CPython 专属断言（`assertLess`/`assertGreater`、`assertNotIn`、`assertRegex`/`assertNotRegex`/`assertRaisesRegex`/`assertWarnsRegex`、`assertListEqual`/`assertDictEqual`/`assertTupleEqual`/`assertSetEqual`/`assertCountEqual`/`assertMultiLineEqual`、`assertLogs`/`assertNoLogs`）。
 
 ```python
 from machine import I2C, Pin
@@ -563,6 +563,6 @@ Phase 2-7 完成后，LLM 执行最终审查，逐项核验：
 - **async 模式下驱动默认不改**，但如果驱动存在阻塞式方法（`time.sleep`、I2S 阻塞操作等），必须修改为异步版本并查阅 asyncio 官方文档确认 API；异步化也可在封装层处理
 - **生成结束自动 `browser_validate` 校验 + PC 测试运行**，不通过不结束
 - **lib/ 下文件需保证 CPython 兼容**：`micropython.const`、`time.ticks_ms` 等 MPY 专有 API 要有 fallback（logger、time_helper 等 scaffold 文件可能遗漏）
-- **设备端测试只用 MPY unittest assert 子集**：`assertTrue`、`assertEqual`、`assertIsNotNone`、`assertRaises`，禁止 `assertIn`/`assertIsInstance` 等
+- **设备端测试只用 MPY unittest assert 子集**：支持 `assertEqual`/`assertTrue`/`assertFalse`/`assertIn`/`assertIsInstance`/`assertIsNone`/`assertIsNotNone`/`assertRaises`/`assertAlmostEqual` 等；禁止 `assertLess`/`assertGreater`/`assertNotIn`/`assertRegex`/`assertListEqual` 等 CPython 专属断言
 - **生成固件用 ASCII 注释**（除非项目本就需要非 ASCII）；避免装饰性 box-drawing 或乱码分隔注释
 - **`_thread` 模式**：scaffold 选 thread 模式时，generate 按 `_thread` API 生成 worker 线程 + `allocate_lock` 互斥 + 心跳，阻塞操作放 worker 线程不阻塞主循环（见参考文档 `_thread` 链接）

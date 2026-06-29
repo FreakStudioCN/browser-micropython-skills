@@ -17,7 +17,34 @@ Base commit `bfb79a1`. **Work is COMMITTED + PUSHED**: `1ad02b6` (migration + or
 
 ---
 
-# ⭐ LATEST — 2026-06-29 session (aux-content re-audit + domain restorations); COMMITTED + PUSHED
+# ⭐ LATEST — 2026-06-29 session (Audit-3: full 10-agent re-audit + base↔plugin conflict fix); COMMITTED + PUSHED
+
+> Newest close-out. Supersedes earlier sections where they conflict. HEAD = this commit, preceded by `1fd4277`. Working tree clean.
+
+## Goal (this session)
+
+User asked **again** to re-verify file-by-file, against the plugin upstream, that every `*-browser` skill is a faithful 平移.
+
+## Method + verdict
+
+10 read-only auditors: 6 dedicated for the plugin-merge skills (analyze / deploy / flash / generate / scaffold / select-hw) + 4 cluster auditors for the other 21. Each diffed browser vs **base AND `-plugin`** + aux files (templates/knowledge/references/boards), returning a strict per-skill verdict; every concrete finding was re-verified by hand against the cited upstream lines before acting. **Verdict: 25/27 fully faithful — no domain knowledge dropped, no host-mechanic leak.** scaffold's 12 device-side templates are byte-identical; the 3 webserial skills' old PTY/subprocess leak stays fully gone.
+
+## Fixed (2 confirmed items; user declined the 3 optional edge condensations)
+
+1. **generate device-unittest assert allowlist — a base↔plugin CONFLICT (new finding TYPE the prior rounds never surfaced).** base `upy-generate/SKILL.md` (and the browser that inherited it) forbade `assertIn`/`assertIsInstance` as "CPython 扩展"; but the plugin's source-derived `references/device_unittest_subset.md` (cites micropython-lib unittest source) lists them as SUPPORTED and only forbids `assertLess`/`assertGreater`/`assertNotIn`/`assertRegex`/`assert*Equal(list/dict/tuple/set)`/`assertLogs`. Aligned `upy-generate-browser/SKILL.md` (the rule near L399 + the summary near L566) to the plugin's broader, correct list. **Rule: when base and plugin conflict, the source-derived plugin wins — do NOT "restore" this back to the narrow base list thinking it's a drop.**
+2. **gen-pkg stale label.** `upy-gen-pkg-browser/SKILL.md` "三种安装方式" → "两种" (three spots): the host `mpremote mip install` method was correctly removed, leaving only mip + upypi.
+
+## Declined (left as-is per user — all are base-absent condensations, not drops)
+
+generate's 4 plugin-only enrichments (GPIO `active_high` polarity, `secrets.example.py`/git-ignored `secrets.py` convention, network-publish logging rows, shared-peripheral `resource_plan` detail); select-hw "no-duplicate-BOM-for-reused-onboard-peripheral" clause; analyze "alternatives must be driver-validated before display" clause.
+
+## Verification
+
+`python -m pytest tests -q` → **42 passed**; host-token leak scan on the 2 edited SKILL.md files → **empty**.
+
+---
+
+# 2026-06-29 session (aux-content re-audit + domain restorations); COMMITTED + PUSHED
 
 > Newest close-out. Supersedes earlier sections where they conflict. **Most important reversal:** the prior "don't resurrect the deleted plugin templates" stance is REVERSED for scaffold's device-side templates — they were re-bundled into the repo. HEAD on `main` = `a7fc28a` (pushed to `FreakStudioCN/browser-micropython-skills`), preceded by `292da42`. Working tree clean.
 
