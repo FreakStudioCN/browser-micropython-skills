@@ -197,6 +197,19 @@ WebFetch: https://docs.python.org/3.5/library/_thread.html#module-_thread
 
 用 `browser_validate` 的 `scaffold_generate` 按调度模式（timer/async/thread）生成骨架，用 `file_operation` 写入项目存储：
 
+**模板来源（source-of-truth）**：设备端库文件与 main 入口的权威实现已随技能打包在 `upy-scaffold-browser/templates/` 下。`scaffold_generate` provider（或 LLM 经 `file_operation`）**逐字复制**这些文件、只替换 `${...}` 占位符，**不得即兴重写**——这样下游 `upy-generate-browser` 才能依赖一个稳定的 API。固定 API 契约：
+
+| 模板文件 | 输出 | 固定 API（下游依赖，不可漂移） |
+|---------|------|------|
+| `templates/lib/scheduler/timer_sched.py` | `firmware/lib/scheduler/timer_sched.py`（**仅 timer 模式**） | `Scheduler(timer_id, tick_ms, idle_cb, error_cb)` + `add_task(callback, interval_ms, name=None)` / `remove_task` / `pause_task` / `resume_task` / `start` / `stop` |
+| `templates/lib/logger/{logging,rotating_logger,__init__}.py` | `firmware/lib/logger/*` | `install_rotating(LOG_DIR, max_files, lines_per_file)` + `getLogger` / `setLevel` / `info` / `warning` / `error` / `DEBUG` / `INFO` |
+| `templates/lib/time_helper.py` | `firmware/lib/time_helper.py` | `timed_function` / `timed_coro` 装饰器 |
+| `templates/tasks/maintenance.py` | `firmware/tasks/maintenance.py` | `maintenance_tick`（GC 检查 + 空闲回调） |
+| `templates/firmware/main_{timer,async,thread}.py.tmpl` | `firmware/main.py` | 按模式选用；硬件实例化 + 调度器框架，task 注册留 TODO 给 `upy-generate` |
+| `templates/firmware/{boot,conf,board,README}.*` | `firmware/{boot.py,conf.py,board.py}` + `README.md` | 启动 / 配置 / 板级常量 / 项目说明 |
+
+main.py 的任务注册必须调用 scheduler 模块**真实存在**的方法（`add_task`，**不是** `register`）；不得为端口兼容改写 scaffold 拥有的 `timer_sched.py`（见下方端口规则）。
+
 **脚本自动完成：**
 
 | 步骤 | 文件 | 方式 |

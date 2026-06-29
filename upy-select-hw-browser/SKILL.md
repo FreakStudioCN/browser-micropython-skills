@@ -326,6 +326,11 @@ pinout 增加条目：
 - 用户接线约束 `user_pin_constraints[]`：每条含 `device`（须对应 `devices[].name`/`pinout[].device`）/ `device_pin` / `mcu_pin`（`GPIO21` 与 `21` 视为同一脚；电源/地保持 `3V3`/`5V`/`GND`）/ `signal`（映射到 `pinout[].type`）/ 可选 `voltage` / `notes`。合法约束转成 `pinout[].source="user_wiring"` 并同步 `pin_decisions[]`（`decision_type="user_wiring"`）；**缺必填字段不得继续 success，输出 partial、`checkpoint.resume_step=pin_assignment`**；用户指定脚仍须过 board JSON 校验，非法脚不得静默改写。
 - 确认结果写入 `hardware_plan.pin_review`：`approval_id`（固定 `pin_plan_review`）/ `confirmed`（**success 前必须为 `true`**）/ `confirmed_by`、`confirmed_at`（confirmed=true 时必填，真实 UTC ISO-8601，不得用占位时间）/ `source`（`approval_response`/`plugin_ui_confirmed`/`user_confirmed`）/ 可选 `note`。
 
+**结构化错误（`structured_errors[]`，写入 `manifest_content`）**：每条含 `code` / `severity` / `message`，可选 `evidence_path`。自由文本不能替代稳定 `code`——下游据 `code` 判定可否继续。
+
+- `severity` 枚举：`info` / `warning` / `error` / `fatal`。
+- `code` 建议枚举：`invalid_upstream_manifest` `missing_required_field` `invalid_enum` `board_not_found` `firmware_unknown` `missing_pin_layout` `pin_conflict` `i2c_address_conflict` `board_definition_not_found` `board_definition_invalid` `board_change_requires_analyze` `restricted_gpio_used` `default_bus_pin_deviation` `pin_review_required` `pin_review_rejected` `pin_decision_invalid` `onboard_peripheral_pin_used` `onboard_peripheral_reused` `user_wiring_invalid` `occupied_pin_conflict` `artifact_missing` `absolute_path_in_artifact` `permission_denied` `validate_failed` `timeout` `phase_complete_invalid`。
+
 ---
 
 ### Step 3: BOM 生成
@@ -359,6 +364,7 @@ pinout 增加条目：
 - `phase`: "select-hw"
 - `mcu`: {model, board, firmware_url, flash_tool}
   - `flash_tool` 取闭枚举：`serial`（ESP 系列串口/WebSerial）/ `uf2-drag-drop`（Pico/RP2）/ `dfu-util`（STM32/Pyboard）/ `teensy-loader`（Teensy）/ `unknown`
+  - **固件版本只视为缓存（跨 skill 不变量）**：select-hw **不负责**确认 MicroPython 固件的实时最新版本；板卡库里的固件版本只能当缓存信息，正式烧录阶段（`upy-flash-mpy-firmware-browser`）才访问 `firmware.url` 检查最新 release。select-hw 输出重点保留 `firmware_url`、`firmware_board_name`、`flash_tool`，**不要把缓存版本当权威**——这与 flash skill 的“不信任缓存 `latest_version`”是同一不变量的上下游两半。
 - `pinout`: [{device, pin_name, gpio, physical_pin, type, side, pos, notes}]
   - `physical_pin`: 物理引脚编号（如 Pico 的 GP4 = Pin 6）
   - `type`: 引脚电气类型枚举（见下方映射表）

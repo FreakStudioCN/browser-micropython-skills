@@ -70,6 +70,10 @@ picks one from the browser device picker. The binding abstracts the Windows / ma
 are no local installs, raw serial paths, or registry tools to manage. Use the selected device handle with
 `resume` semantics for a running device.
 
+Hardware facts that survive the picker abstraction:
+- A Raspberry Pi Pico / Pico W running MicroPython enumerates with USB VID:PID `2E8A:0005` — useful to confirm the right board is bound when several devices are listed.
+- A device's identity can change across a reconnect (re-plug, soft reset, or a different USB slot). After a reconnect, re-confirm the selected device in the picker rather than assuming the previous handle still points at the same board.
+
 ### The `resume` semantics
 
 `resume` connects to the device without interrupting the running application — critical for devices running asyncio event loops:

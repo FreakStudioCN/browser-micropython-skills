@@ -96,15 +96,14 @@ device_command c3 resume fs cp main.py :main.py
 device_command connect COM3 resume fs cp main.py :main.py
 ```
 
-### macOS
+### macOS / Linux
 
 ```bash
-# Discover port
+# Discover authorized devices (the Blockless picker abstracts the OS port path)
 device_command connect list
-# or: ls /dev/tty.usb*
 
-# Copy using full path (stable for a given USB slot)
-device_command connect /dev/tty.usbmodem1101 resume fs cp main.py :main.py
+# Copy using the selected device handle
+device_command connect <selected-device> resume fs cp main.py :main.py
 ```
 
 ### Device selection
@@ -115,7 +114,7 @@ The device handle comes from the Blockless device picker (`device_command` scan 
 device_command (connect <selected-device>, resume, fs cp file.py :file.py)
 ```
 
-Never use `/dev/ttyUSB0` — it changes on reconnection.
+A device's port identity can change on reconnection — re-select it from the Blockless picker instead of reusing a stale handle.
 
 ## Device path syntax
 

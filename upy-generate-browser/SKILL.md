@@ -377,6 +377,7 @@ _log = getLogger("main")
 
 5. **顶层启动 fatal guard**：若 main.py 安装了 rotating logger，必须有顶层启动 fatal guard —— 异常同时 `sys.print_exception()` 到串口 + `logger.exception()` 写设备日志；生成的 `Scheduler(...)` 必须传入 `error_cb`，task 异常也要 `print + logger.exception` 双写。
 6. **Scheduler `timer_id` 端口兼容（硬规则）**：只有 RP2/Pico/RP2040/RP2350 和 Zephyr 用 `Timer(-1)` / `Scheduler(timer_id=-1)`（这些端口需要虚拟定时器；保留 scaffold 的 `timer_id=-1` 默认，不要为了端口兼容重写 scaffold 拥有的 `lib/scheduler/timer_sched.py`）。其他 MCU/端口目标必须传显式合法的非负硬件 timer id，如 `Scheduler(timer_id=0, error_cb=...)`；当 scheduler 默认映射到 `Timer(-1)` 时，不得生成隐式 `Scheduler()` / `Scheduler(tick_ms=...)`。
+6a. **Scheduler API 一致性（硬规则）**：main.py 的任务注册必须与 scaffold 拥有的 `lib/scheduler/timer_sched.py` **实际存在的方法**一致——调用 `add_task(callback, interval_ms, name=None)`，**不得**调用模块未定义的方法（如 `register(...)`），否则设备端 `AttributeError`。main 装配层与 scheduler 实现是两个独立生成面，必须共享同一 API 契约；生成后核验 `Scheduler` 的构造签名与注册方法名确实由 `timer_sched.py` 定义（`SCHEDULER_API_OR_TIMER_PORT_MISMATCH`）。同理 `lib.logger` 只调用 `install_rotating` 等模板真实导出的函数。
 
 ## Phase 6: LLM 生成测试文件
 
