@@ -83,35 +83,19 @@ device_command <device> fs cp file.py :file.py             # WRONG: resets devic
 
 Without `resume`, device_command performs a soft reset before the filesystem operation, restarting the application and potentially losing state.
 
-## Device path by platform
+## Device selection
 
-### Windows
-
-```bash
-# Discover port
-device_command connect list
-
-# Copy using shortcut or explicit COM port
-device_command c3 resume fs cp main.py :main.py
-device_command connect COM3 resume fs cp main.py :main.py
-```
-
-### macOS / Linux
+The device handle comes from the Blockless device picker (`device_command` scan +
+user authorization), which abstracts away the OS-specific serial port (Windows
+`COMx`, macOS/Linux `/dev/...`) — the same form works on every platform, with no
+host port paths or registry tools to manage:
 
 ```bash
-# Discover authorized devices (the Blockless picker abstracts the OS port path)
+# Discover authorized devices
 device_command connect list
 
 # Copy using the selected device handle
 device_command connect <selected-device> resume fs cp main.py :main.py
-```
-
-### Device selection
-
-The device handle comes from the Blockless device picker (`device_command` scan + user authorization) — no host port paths or registry tools:
-
-```text
-device_command (connect <selected-device>, resume, fs cp file.py :file.py)
 ```
 
 A device's port identity can change on reconnection — re-select it from the Blockless picker instead of reusing a stale handle.
@@ -186,11 +170,7 @@ The result tuple fields: `(bsize, frsize, blocks, bfree, ...)`. Available bytes 
 ### Driver development workflow: update + restart + monitor
 
 ```bash
-# Linux/macOS
 device_command <device> resume fs cp utils/driver.py :utils/driver.py + soft_reset repl
-
-# Windows PowerShell
-device_command connect COM3 resume fs cp utils/driver.py :utils/driver.py + soft_reset repl
 ```
 
 ### Deploy a Python module and reboot
