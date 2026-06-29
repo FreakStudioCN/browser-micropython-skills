@@ -38,6 +38,13 @@ Base commit `bfb79a1`. **Work is COMMITTED + PUSHED**: `1ad02b6` (migration + or
 - **Codex review (round 1, full diff):** domain retention CLEAN, firmware chain CLEAN, docs deletions CLEAN. Raised 2 MUST-FIX on the simulate file — but both assumed Pyodide (rich `Live` defaults; `asyncio.run()` vs already-running JS loop). Both **dissolved** by the MicroPython-WASM correction (rich removed; `asyncio.run` is idiomatic for MicroPython-WASM and the provider owns entry scheduling).
 - **Codex review (round 2):** focused re-verify of the simulate file for MicroPython-WASM correctness → items "no CPython-only assumptions", "asyncio entry sound", "domain intact" all **CLEAN**; 2 MUST-FIX on the example code (`gen_bmp280` used `math.*` without `import math`; guidance used `os.path.join`, which MicroPython lacks) — both fixed in `801c69b` (plain string path; added `import math`). `pytest` 42 passed, leak scans empty after the fix.
 
+## What worked (this session)
+
+- **Trace each open item to ground truth before touching code.** The firmware-chain handlers + `firmware_provider` capability already existed in `validation.py`/`cli.py` — only the workflow call-chain + the CLI `advertised_kinds` were stubbed; and `upy-analyze-browser` was already consistent (zero dangling refs). Reading first meant I wired what was missing instead of inventing fixes that weren't needed.
+- **Verify the runtime against the dependency, not intuition.** Reading `viperide-fork/package.json` (→ `@micropython/micropython-webassembly-pyscript`) is what proved the sim runtime is MicroPython-WASM and overturned the Pyodide assumption — a `grep`/`package.json` check beat a plausible-sounding guess.
+- **Two-pass Codex gate.** Round 1 over the full diff (confirmed domain/firmware/docs CLEAN); round 2 focused on MicroPython validity of the simulate examples (caught the missing `import math` in `gen_bmp280` + the `os.path.join` that MicroPython lacks). Self-review + the leak scans missed both.
+- **Surgical runtime-only edits.** Swapping only scheduling / visualization / library wording and leaving every domain section (mock patterns, scenarios, coverage dims, NL→mock mapping) untouched is why Codex confirmed domain retention CLEAN on both passes.
+
 ## What Did NOT Work / lesson
 
 - **Assuming "browser WASM == Pyodide (CPython)".** First instinct was Pyodide, so the first simulate rewrite KEPT `rich` (reframed as xterm-rendered). Wrong: the stack reuses ViperIDE's runtime = **MicroPython-WASM**, where `rich`/CPython-only libs don't exist. First-principles check of `viperide-fork/package.json` (the dependency, not the assumption) is what caught it. Lesson: verify the actual runtime dependency before designing generated-code guidance against it.
