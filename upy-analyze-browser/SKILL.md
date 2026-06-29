@@ -100,7 +100,7 @@ Intent parsing, device confirmation, and driver search strategy are the LLM's jo
 
 先按本文件执行流程。本 browser skill 的执行面是 Blockless 原语：`file_operation`、`browser_validate`、`device_command`、`approval_request`、`phase_complete`；envelope、manifest、checkpoint、structured errors 和 artifacts 的字段含义与枚举见仓库 `contracts/` 下的 schema。
 
-输出 JSON 时优先使用 `templates/*.json` 和 `mock-messages/analyze/*.json` 的形状，不要自由发挥字段名。
+输出 JSON 的字段名与形状以**本文件各节定义的模型**（result 枚举 / checkpoint / structured_errors + severity / artifact status / manifest 最低交付字段）和仓库 `contracts/` 下的 schema 为准，不要自由发挥字段名。
 
 ### 正式插件模式
 
@@ -561,18 +561,9 @@ builtin_runtime / micropython_lib / upypi / awesome-micropython / github / local
 - `driver_search_log.md`
 - `analyze_phase_log.md`（建议）
 
-## 模板和 mock
+## 输出形状与字段来源
 
-使用本 skill 自带资源：
-
-- `templates/envelope.phase_complete.json`
-- `templates/checkpoint.json`
-- `templates/structured_error.json`
-- `templates/artifact.file_list.json`
-- `mock-messages/analyze/*.json`
-- `references/v0-protocol.md`
-
-修改模板、枚举或输出格式后，必须更新校验脚本和 smoke 测试。
+输出消息（envelope / phase_complete / checkpoint / structured_errors / artifact·file_list）的字段名、枚举与形状以**本文件各节定义的模型**为准，并与仓库 `contracts/` 下的 schema 对齐，不要自由发挥字段名。修改枚举或输出格式后，必须同步 `browser_validate` 的校验预期。
 
 ## 强约束
 

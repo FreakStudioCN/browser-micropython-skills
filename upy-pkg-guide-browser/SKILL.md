@@ -224,10 +224,9 @@ device_command cp -r lib/ :lib/
 - awesome-micropython 路径的包通常无标准化安装方式，需说明手动复制哪些文件/目录
 - 若某文件不存在（404 或 API 无返回），跳过对应部分，不报错
 
-## 脚本说明
+## 搜索说明
 
-`scripts/search_awesome.py` — awesome-micropython 索引搜索脚本
-- 自动拉取并缓存 `mcauser/awesome-micropython` 的 README（24 小时缓存）
-- 支持大小写不敏感搜索库名和描述
-- 缓存文件：`scripts/_awesome_cache.json`
+awesome-micropython 索引搜索由 `browser_validate` (`awesome_micropython_search`) 提供：
+- 自动拉取并缓存 `mcauser/awesome-micropython` 的 README（约 24 小时缓存）
+- 大小写不敏感搜索库名和描述
 - 支持平台：GitHub、GitLab、Codeberg
