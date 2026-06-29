@@ -243,6 +243,11 @@ class Mock<Name>:
 
 修改驱动后，更新对应 Mock 的方法签名（`async def` 匹配），task 协程中用 `await` 调用。
 
+**async 模式禁止项（强约束）**：
+
+- async scheduler 模式下，不得在 `async def` 内直接调用阻塞操作：`time.sleep_ms`、`read_samples`、`play_samples`、`connect`、扫描循环、同步 HTTP。改用协作式状态机/封装、thread 模式，或输出 `partial`。
+- **不得用 `getattr`/`__getattribute__`/别名变量/lambda/反射 helper/瘦同步包装函数隐藏阻塞调用**；在 `record()`/`play()`/`connect()`/扫描循环/同步 HTTP 前只 yield 一次**不算**非阻塞适配。必须用真正的协作式状态机、thread/worker 交接、真正非阻塞的 API，或输出 `partial`。
+
 ## Phase 3: LLM 生成任务文件
 
 读取 `manifest.requirements.description`（用户需求描述）和 `manifest.devices` 列表 → 生成 task 文件。
@@ -370,6 +375,9 @@ _log = getLogger("main")
 
 **LLM 自主决定：** import 组织、初始化顺序、`install_rotating(fmt=...)` 参数、启动日志具体措辞、GPIO/SPI 器件的创建方式。
 
+5. **顶层启动 fatal guard**：若 main.py 安装了 rotating logger，必须有顶层启动 fatal guard —— 异常同时 `sys.print_exception()` 到串口 + `logger.exception()` 写设备日志；生成的 `Scheduler(...)` 必须传入 `error_cb`，task 异常也要 `print + logger.exception` 双写。
+6. **Scheduler `timer_id` 端口兼容（硬规则）**：只有 RP2/Pico/RP2040/RP2350 和 Zephyr 用 `Timer(-1)` / `Scheduler(timer_id=-1)`（这些端口需要虚拟定时器；保留 scaffold 的 `timer_id=-1` 默认，不要为了端口兼容重写 scaffold 拥有的 `lib/scheduler/timer_sched.py`）。其他 MCU/端口目标必须传显式合法的非负硬件 timer id，如 `Scheduler(timer_id=0, error_cb=...)`；当 scheduler 默认映射到 `Timer(-1)` 时，不得生成隐式 `Scheduler()` / `Scheduler(tick_ms=...)`。
+
 ## Phase 6: LLM 生成测试文件
 
 ### 6A: PC 端单元测试 `test/pc/test_<task>.py`
@@ -422,6 +430,8 @@ PC 端测试（`test/pc/`）会遇到 MicroPython 特有模块在 CPython 不存
 - `mpy_compile`：交叉编译检查（provider 未加载时返回 `partial`）
 
 风格约定由 LLM 落实（行宽 ≤ 120、无未用 import、`raise`/`print` 字符串英文）。有错直接修，修完重新校验，直到通过。
+
+**生成语义检查（强门禁，命中即不得 deploy-ready success）**：拦截 runtime placeholder、**每 tick 重置状态机**、async 内同步网络调用、**硬件数据读取后被丢弃**、共享 I2S/SPI/UART 资源却无 `generate.resource_plan` 等问题。
 
 ### 7C: MicroPython 导入兼容性检查
 
@@ -525,7 +535,7 @@ Phase 2-7 完成后，LLM 执行最终审查，逐项核验：
 
 **云 / 第三方 API 安全**：需求涉及 LLM/ASR/TTS/视觉/IoT-MQTT/Webhook/REST 等付费或带凭据的云服务时，必须经 `approval_request` 让用户确认：服务商、官方文档/控制台/价格链接、是否已开通计费、API Key 是否就绪、是否需要网关/代理。**真实 token 绝不写入代码**；`conf.py` 只存非密钥 endpoint、模型名、超时、重试、功能开关与 secret 名称。云服务为 `mock_only` 或 `blocked` 时**不得进入 deploy**，并在 `manifest_content.generate.cloud_integrations[]` 记录。
 
-**外设 API 文档证据**：用到 `machine`/`network`/`neopixel`/`esp32`/`rp2`/`bluetooth` 等硬件外设 API，必须在 `manifest_content.generate.doc_evidence[]` 记录 `module` + 官方 MicroPython `url` + `reason`；仅 CPython 链接或页面内容不足 → 补端口文档证据或输出 partial。
+**外设 API 文档证据**：用到 `machine`/`network`/`neopixel`/`esp32`/`rp2`/`bluetooth` 等硬件外设 API，必须在 `manifest_content.generate.doc_evidence[]` 记录 `module` + 官方 MicroPython `url` + `reason`；仅 CPython 链接或页面内容不足 → 补端口文档证据或输出 partial。用到具体 `machine.*` 类（如 `machine.I2S`/`machine.Timer`/`machine.Pin`）时必须引用其**对应的 MicroPython 专页**，父 `machine` 页不足以作为该具体类的证据。
 
 **部署就绪契约（success 必须满足）**：
 
@@ -534,6 +544,7 @@ Phase 2-7 完成后，LLM 执行最终审查，逐项核验：
 - 设备端测试默认放 `device/tests/`，验证协议/状态/任务/驱动/配置契约，不只是 import smoke。
 - success 不得遗留或提交 CPython 缓存（`__pycache__/`、`*.pyc`）。
 - 语音/传感器/云/状态机等跨 tick 业务流，`generate_plan` 必须声明 `data_flow_contract[]`（producer/consumer/invariant/storage）并为关键数据流生成 contract test。
+- `devices[].driver.status == cold_driver_required` 时：可以生成 Mock 和业务框架，但**不得输出 deploy-ready success**；应 `partial` 并建议 `upy-gen-driver-browser` 或 simulate。
 
 **partial/failed 判定**：`NETWORK_DISCONNECTED`、`RATE_LIMITED`、`UPSTREAM_TIMEOUT` 视为可重试中断；`TOKEN_BUDGET_EXCEEDED`、`MODEL_CONTEXT_EXHAUSTED`、`CANCELLED_BY_USER` 非可重试（除非用户改预算/模型/意图）。校验或最终一致性检查失败 → 改 `partial`/`failed`、`next_phase=null` 并记录 structured error。
 
@@ -552,3 +563,5 @@ Phase 2-7 完成后，LLM 执行最终审查，逐项核验：
 - **生成结束自动 `browser_validate` 校验 + PC 测试运行**，不通过不结束
 - **lib/ 下文件需保证 CPython 兼容**：`micropython.const`、`time.ticks_ms` 等 MPY 专有 API 要有 fallback（logger、time_helper 等 scaffold 文件可能遗漏）
 - **设备端测试只用 MPY unittest assert 子集**：`assertTrue`、`assertEqual`、`assertIsNotNone`、`assertRaises`，禁止 `assertIn`/`assertIsInstance` 等
+- **生成固件用 ASCII 注释**（除非项目本就需要非 ASCII）；避免装饰性 box-drawing 或乱码分隔注释
+- **`_thread` 模式**：scaffold 选 thread 模式时，generate 按 `_thread` API 生成 worker 线程 + `allocate_lock` 互斥 + 心跳，阻塞操作放 worker 线程不阻塞主循环（见参考文档 `_thread` 链接）

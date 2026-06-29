@@ -219,6 +219,7 @@ WebFetch: https://docs.python.org/3.5/library/_thread.html#module-_thread
 | build/firmware/ | .bin/.uf2/.hex 固件 | .gitkeep |
 | build/mpy/ | 编译后 .mpy 文件 | .gitkeep |
 | firmware/assets/ | 设备端资源文件（音频等） | .gitkeep |
+| docs/ | 项目文档入口 | .gitkeep（必须保留） |
 | README.md | 项目名 + BOM + 引脚表 | 生成 |
 | LICENSE | MIT | 生成 |
 | — | 客观校验 | `browser_validate` 的 `python_syntax` / `scaffold_contract` 自动执行 |
@@ -304,4 +305,5 @@ while True:
 - **GPIO 方向来自 `pinout[].type`**：`gpio_out`/`DATA`/`DO`/`OUT`/`GAIN`/`SD` 默认 `Pin.OUT`，`gpio_in` 默认 `Pin.IN`——不要把 WS2812 DATA 这类输出脚生成成 `Pin.IN`
 - **`main.py` 启动期 fatal guard**：装 rotating logger 后关键启动状态 `print + logger` 双写；未捕获的启动/装配异常必须 `sys.print_exception()` 打串口 + `logger.exception()` 写 `/log/run_*.log`，不依赖 MPY 自动落盘
 - **生产部署过滤规则（写入 manifest 供 deploy 消费）**：`main.py`/`boot.py`/`conf.py` 始终以 `.py` 部署不编译；`drivers/**/mock.py` 是测试替身不得编译/上传，stale `mock.mpy` 也跳过——deploy 的 `deploy_plan` 据此判定禁止产物
+- **不伪造工具/schema**：写入骨架的 schema 与工具脚本只能是当前仓库真实存在的，不要伪造不存在的后续工具或 schema
 - **最终交付契约**：`project-manifest.json` 经 `file_operation` 写入项目根；`phase_complete.artifacts` 至少含 `file_tree` 与 `file_list`；success 时 `next_phase=upy-generate-browser`，partial/failed 时 `next_phase=null`

@@ -251,7 +251,7 @@ MCU recommendation, firmware verification, and pin allocation are the LLM's job.
 | GPIO 输入+上拉 | `gpio_in_pullup` |
 | ADC 输入 | `adc` |
 | PWM 输出 | `pwm` |
-| I2S | `i2s` |
+| I2S BCK/WS/DIN/DOUT | `i2s_bck` / `i2s_ws` / `i2s_data_in` / `i2s_data_out` |
 
 **物理引脚编号 (physical_pin) 获取规则：**
 - Pico 系列：GP0=Pin1, GP1=Pin2, ..., GP28=Pin34；3V3(OUT)=Pin36；GND=Pin3/8/13/18/23/28/33/38
@@ -279,7 +279,7 @@ pinout 增加条目：
 
 引脚事实源：板卡库有 board JSON 时以**完整 board JSON** 为 `firmware`/`pin_layout`/`restricted_gpio`/`onboard_peripherals` 的事实源；否则以用户确认的 pinout 图识别结果为准。`selected_board` 摘要不能替代完整事实。
 
-**MCU 候选排序（未指定 MCU 时）**：候选池优先 Pico/RP2 + ESP32 系列；WiFi/BLE 加分 ESP32/Pico W，AI/语音/摄像头加分 ESP32-S3，低功耗加分 ESP32-C3，纯 GPIO/新手加分 Pico/Pico W。默认排序 Pico/Pico W → ESP32 DevKit → ESP32-S3 → ESP32-C3，输出 Top1 + Top2 备选。用户在 select-hw 要求**跨 MCU/芯片族/固件目标**换板 → 不出 success，输出 partial/checkpoint 回 analyze 重新确认。
+**MCU 候选排序（未指定 MCU 时）**：候选池优先 Pico/RP2 + ESP32 系列；WiFi/BLE 加分 ESP32/Pico W，AI/语音/摄像头加分 ESP32-S3，低功耗加分 ESP32-C3，纯 GPIO/新手加分 Pico/Pico W。默认排序 Pico/Pico W → ESP32 DevKit → ESP32-S3 → ESP32-C3，输出 Top1 + Top2 备选。用户在 select-hw 要求**跨 MCU/芯片族/固件目标**换板 → 不出 success，输出 partial/checkpoint 回 analyze 重新确认。极致低价可加分 ESP8266/Pico，但 **ESP8266 不应压过 Pico/ESP32，除非预算是唯一主约束**。`cold-driver` 不影响 MCU 推荐、引脚分配或 BOM，只增加 warnings。
 
 **引脚分配规则**：I2C 默认共享一条总线并优先 `default_bus_pins`，`i2c_addr` 冲突 → 改第二条或 partial；SPI 共享 MOSI/MISO/SCK、每器件独立 CS；UART 避开 REPL/USB；ADC 仅 ADC-capable 脚；GPIO 避开 boot/strapping、flash/PSRAM、USB OTG、只读脚；电源与 GND 必须进 `pinout`。用户接线优先保留但必须过 restricted/occupied 校验，**非法接线不得静默成功**；命中硬禁用脚/方向不符/被 `always_used` 板载外设占用 → 输出 `partial`、`checkpoint.resume_step=pin_assignment`、在 `structured_errors` 说明，**不自动换脚后继续 success**。
 
@@ -300,6 +300,13 @@ pinout 增加条目：
 
 `pinout[]` 必填字段：`device` / `pin_name` / `gpio` / `type`（取上方枚举）；可选 `bus` / `i2c_addr` / `physical_pin` / `side` / `pos` / `notes`；建议 `source`（`default_bus`/`auto_assigned`/`user_wiring`/`onboard_peripheral`/`power`）。电源/地必须按真实 rail：`gpio` 为 `GND`/`3V3`/`5V` 时 `type` 必须为 `gnd`/`power_3v3`/`power_5v`，不得伪装成普通 GPIO。
 
+**补充引脚分配规则（电气事实）**：
+
+- **I2S**：需分配 BCK/WS/DIN/DOUT；麦克风与功放可共享 BCK/WS，但数据方向不同（一个 DIN、一个 DOUT）。
+- 若 board JSON 有 `pin_options`，重映射只能在 `pin_options` 允许范围内；flexible matrix 也必须避开硬禁用脚。条件可用脚不作 schema 硬失败，交 warnings + 用户确认处理。
+- 用板卡默认 UART/REPL/USB 串口脚做普通 GPIO 时，必须确认该串口不用于调试/通信，或写入 warning 并给出可重分配建议。
+- 启用 WiFi 且用到 `adc2_wifi_conflict` 中的 GPIO 时，必须**完整列出所有相关 GPIO**；只有 `pinout[].type=adc` 才是冲突，作 I2C/I2S/数字用途允许，但须在 warnings/notes 说明“WiFi 只影响 ADC 读数，不影响数字用途”。
+
 **结构化 `pin_decisions[]`（必须保留在 `manifest_content`，自然语言 notes 不能替代证据）**：每条含 `device` / `pin_name` / `assigned_gpio` / `decision_type` / `source` / `evidence` / `requires_user_review`，可选 `review_prompt` / `deviation`。
 
 - `decision_type` 枚举：`use_default_bus` `auto_assign_free_gpio` `remap_default_conflict` `avoid_restricted_gpio` `avoid_onboard_occupied` `reuse_onboard_peripheral` `fixed_power_tie` `user_wiring` `manual_review_required`。
@@ -310,7 +317,14 @@ pinout 增加条目：
 **审批安全门**：
 
 - `approval_request`(`board_unavailable`)：用户指定板卡不在库/无 `pin_layout` 时，推荐同系列或功能相似且有 `pin_layout` 的已知板卡，允许改选或手动描述接线。
-- `approval_request`(`pin_plan_review`)：条件可用脚、配置脚硬接、默认总线偏离、板卡资料不足等风险统一进 warnings/notes，由用户在此门确认或改脚后才算整体验收。GPIO 汇总（`used_gpio` / `unused_gpio` / `restricted_or_occupied_gpio`）必须从完整事实与最终 `pinout` 计算，不得手写静态列表。
+- `approval_request`(`pin_plan_review`)：条件可用脚、配置脚硬接、默认总线偏离、板卡资料不足等风险统一进 warnings/notes，由用户在此门确认或改脚后才算整体验收。提醒用户重点核查：默认总线脚是否真实引出且无冲突、`restricted_gpio`/boot/strapping/flash-PSRAM/USB-JTAG-REPL-UART 占用、`onboard_peripherals` 是否真占用且可否释放、外设 VCC/GND/配置脚是 MCU 控制还是硬接电源地、板卡变体/原理图版本/丝印是否一致。GPIO 汇总（`used_gpio` / `unused_gpio` / `restricted_or_occupied_gpio`）必须从完整事实与最终 `pinout` 计算，不得手写静态列表。
+
+**审批动作枚举与结构化接线（domain）**：
+
+- `board_unavailable` 互斥动作：`use_recommended_similar`（用推荐的同系列/相似已知板卡）/ `select_known_board`（改选库内其他已知板卡，回 `board_select`）/ `manual_wiring_description`（用户手动描述接线 → partial/checkpoint，等结构化接线）/ `save_partial`。手动接线用数组表达，每条含 `mcu_pin` / `device` / `device_pin` / `signal` / `voltage` / `notes`。
+- `pin_plan_review` 动作：`confirm_pin_plan`（按草案继续）/ `revise_pin_plan`（回 `pin_assignment` 重分配）/ `manual_wiring_description` / `save_partial`。
+- 用户接线约束 `user_pin_constraints[]`：每条含 `device`（须对应 `devices[].name`/`pinout[].device`）/ `device_pin` / `mcu_pin`（`GPIO21` 与 `21` 视为同一脚；电源/地保持 `3V3`/`5V`/`GND`）/ `signal`（映射到 `pinout[].type`）/ 可选 `voltage` / `notes`。合法约束转成 `pinout[].source="user_wiring"` 并同步 `pin_decisions[]`（`decision_type="user_wiring"`）；**缺必填字段不得继续 success，输出 partial、`checkpoint.resume_step=pin_assignment`**；用户指定脚仍须过 board JSON 校验，非法脚不得静默改写。
+- 确认结果写入 `hardware_plan.pin_review`：`approval_id`（固定 `pin_plan_review`）/ `confirmed`（**success 前必须为 `true`**）/ `confirmed_by`、`confirmed_at`（confirmed=true 时必填，真实 UTC ISO-8601，不得用占位时间）/ `source`（`approval_response`/`plugin_ui_confirmed`/`user_confirmed`）/ 可选 `note`。
 
 ---
 
@@ -344,6 +358,7 @@ pinout 增加条目：
 --- 写入字段：
 - `phase`: "select-hw"
 - `mcu`: {model, board, firmware_url, flash_tool}
+  - `flash_tool` 取闭枚举：`serial`（ESP 系列串口/WebSerial）/ `uf2-drag-drop`（Pico/RP2）/ `dfu-util`（STM32/Pyboard）/ `teensy-loader`（Teensy）/ `unknown`
 - `pinout`: [{device, pin_name, gpio, physical_pin, type, side, pos, notes}]
   - `physical_pin`: 物理引脚编号（如 Pico 的 GP4 = Pin 6）
   - `type`: 引脚电气类型枚举（见下方映射表）
