@@ -189,6 +189,7 @@ def gen_sht30(tick):
 
 def gen_bmp280(tick):
     """气压 1000-1020 hPa，带随机噪声"""
+    import math
     import random
     press = 101000 + 1000 * math.sin(2 * math.pi * tick / 300) + random.uniform(-200, 200)
     return (25.0, press, 55.0)  # temp, pressure, humidity
@@ -549,7 +550,7 @@ test/pc/
 ```
 
 **代码约束：**
-- 通过 `sys.path.insert(0, os.path.join(...))` 导入 firmware/
+- 通过 `sys.path.insert(0, "firmware")` 导入 firmware/ 模块（MicroPython 无 `os.path`，用普通字符串路径；provider 把项目根目录挂载到虚拟 FS）
 - 回调包装方式与 `firmware/main.py` 保持一致
 - 任务注册方式与 `firmware/main.py` 保持一致
 - `_data` dict 的 key 与 `firmware/main.py` 保持一致
