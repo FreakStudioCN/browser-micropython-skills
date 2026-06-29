@@ -1,6 +1,6 @@
 # Blockless MicroPython Browser Skills
 
-Blockless Web Builder skill repository for browser-native MicroPython hardware workflows.
+Blockless Web Builder skill repository for browser-native MicroPython hardware workflows. Blockless Web Builder is the only target runtime. ViperIDE is only an implementation reference for browser serial and device techniques.
 
 This repository starts from the upstream `FreakStudioCN/MicroPython_Skills` skill tree, keeps those skills as reference material, and adds Blockless-first browser skills that run through the Blockless web product without leaking local shell assumptions.
 
@@ -16,6 +16,23 @@ Blockless browser skills may only use these primitives:
 
 Do not add `script_run` back. Do not make browser skill steps depend on local `mpremote`, `curl`, `git`, `esptool`, `flake8`, `pylint`, or `mpy-cross` commands. Those capabilities must be implemented through Blockless browser bindings. `capability_required` means the current Blockless runtime is missing state such as login, USB permission, a connected device, or a loaded provider.
 
+## Skill Content & Structure
+
+Each `*-browser/SKILL.md` carries the **full domain content** of its upstream source (the P0–P2 rule
+checklists, section templates, optimization tables, and code templates), with only the *execution layer*
+swapped to Blockless primitives. They are not thin stubs — a browser skill is contract sections + the upstream
+rules, expressed through Blockless bindings.
+
+The 27 skills mirror the upstream **two-spine, three-tier** structure (project pipeline / driver normalization,
+over orchestrator / phase / atomic / tool). The relationship is encoded as data in the manifest
+(`tier`/`spine`/`phase`/`orchestrates`/`calls`), surfaced by `cli catalog` under `orchestration`, and
+documented in `docs/skill-orchestration-map.md`.
+
+**Boundary:** a skill's domain rewriting/generation is done by the LLM applying its embedded rules;
+`browser_validate` only performs the objective, decidable subset (parse / structure / provider-backed fetch /
+render). A validation kind never replaces the rule checklist. Each skill states this in its
+"domain … vs browser_validate" section.
+
 ## Repository Layout
 
 | Path | Purpose |
@@ -27,6 +44,9 @@ Do not add `script_run` back. Do not make browser skill steps depend on local `m
 | `*-browser/SKILL.md` | Blockless browser skill definitions. |
 | upstream skill dirs | Original upstream skills retained as conversion references. |
 | `tests/` | Contract, runtime, validation, CLI, and workflow tests. |
+| `docs/plugin-capability-crosswalk.md` | Upstream/plugin capability to Blockless primitive mapping. |
+| `docs/skill-orchestration-map.md` | Two-spine / three-tier skill graph (orchestrators, phases, edges). |
+| `docs/reference/` | Bundled GraftSense spec + performance/memory guides cited by the normalization/optimization skills. |
 
 ## Runtime Helpers
 
@@ -58,9 +78,9 @@ The current implementation includes:
 - Browser validation kind validation.
 - Capability negotiation helpers.
 - In-memory project artifact store.
-- Browser validation providers for MVP flow: project files, Python syntax, scaffold generation, scaffold contract, deploy plan, deploy result judge.
+- Default browser validation router registration for all 33 declared validation kinds. Deterministic providers run in the reference runtime; Blockless runtime providers return structured partial results until provider state is supplied.
 - Fake device binding for contract tests and dry runs.
-- Reference analyze -> select-hw -> scaffold -> generate -> deploy workflow.
+- Reference analyze -> select-hw -> firmware readiness/flash plan -> scaffold -> generate -> deploy workflow.
 
 ## Blockless Runtime States
 

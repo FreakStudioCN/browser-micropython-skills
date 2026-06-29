@@ -1,8 +1,21 @@
 import json
+import re
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+# Host CPython invocation as a browser-skill action — e.g. `python -c "..."`,
+# `python foo/bar.py`, `python {skill_dir}/x.py`, `python "C:/.../y.py"`,
+# `python C:/bare/path.py` (unquoted drive), `python script.py` (bare file). The
+# negative-lookbehind excludes runtime/device words that legitimately appear in
+# prose (micropython / cpython) and the `python +` space requirement excludes
+# identifiers like the `python_syntax` browser_validate kind. This is a regex
+# rather than a substring token because the substring gate has trailing-space /
+# quote-form blind spots (it once missed `os.execvp("mpremote", …)`).
+HOST_PYTHON_INVOCATION = re.compile(
+    r'''(?<![a-z])python[0-9]? +(?:-|/|\.|\{|"|'|[a-z]:[\\/]|[\w.]+/|[\w.]+\.py)'''
+)
 
 
 def load_manifest():
@@ -33,6 +46,7 @@ def test_contract_files_exist():
         "adapters/validation-adapter.md",
         "adapters/artifact-store-adapter.md",
         "docs/blockless-consuming-browser-skill-contract.md",
+        "docs/plugin-capability-crosswalk.md",
     ]
 
     missing = [path for path in required if not (ROOT / path).exists()]
@@ -105,6 +119,29 @@ def test_browser_skill_docs_do_not_expose_local_commands_as_actions():
         "flake8",
         "pylint",
         "mpy-cross",
+        # local execution that is not a single CLI token but still leaks host-shell
+        # / package-manager / local-script behavior into a browser skill:
+        "pip install",
+        "uv tool",
+        "uv run",
+        "python g:",
+        "python -m ",
+        "python --version",
+        "fuser ",
+        "mpy-dev",
+        "skill(",
+        "g:/",
+        "start-sleep",
+        "timeout /t",
+        # host process-spawning that drives a local binary (e.g. forking/execing the
+        # mpremote CLI, PTY/subprocess plumbing) — the `mpremote ` token above only
+        # catches a trailing-space CLI form, not these quoted/argv-list spawns:
+        "os.fork",
+        "os.execvp",
+        "pty.openpty",
+        "subprocess.popen",
+        "pexpect",
+        '"mpremote"',
     ]
     offenders = []
 
@@ -113,6 +150,8 @@ def test_browser_skill_docs_do_not_expose_local_commands_as_actions():
         for token in forbidden:
             if token in text:
                 offenders.append(f"{skill_file.relative_to(ROOT)}: {token.strip()}")
+        for match in HOST_PYTHON_INVOCATION.finditer(text):
+            offenders.append(f"{skill_file.relative_to(ROOT)}: host-python `{match.group(0).strip()}`")
 
     assert offenders == []
 
@@ -133,3 +172,5 @@ def test_blockless_docs_do_not_present_viperide_as_runtime_target():
                 offenders.append(f"{path.relative_to(ROOT)}: {phrase}")
 
     assert offenders == []
+
+

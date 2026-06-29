@@ -8,6 +8,7 @@ from .runtime import ArtifactStore, BrowserValidateRouter, FakeDeviceAdapter
 MAIN_SKILL_CHAIN = [
     "upy-analyze-browser",
     "upy-select-hw-browser",
+    "upy-flash-mpy-firmware-browser",
     "upy-scaffold-browser",
     "upy-generate-browser",
     "upy-deploy-browser",
@@ -100,6 +101,15 @@ def run_main_browser_workflow(
     select_phase = validator.run("manifest_phase", {"phase": "select_hw", "manifest": manifest})
     if failed := _stop_if_not_success(select_phase):
         return _phase_result("select_hw", failed)
+
+    firmware = validator.run("firmware_flash_plan", {"manifest": manifest, "board": board})
+    _persist_artifacts(artifact_store, firmware.get("artifacts", []))
+    if failed := _stop_if_not_success(firmware):
+        return _phase_result("flash_firmware", failed)
+
+    firmware_phase = validator.run("manifest_phase", {"phase": "flash_firmware", "manifest": manifest})
+    if failed := _stop_if_not_success(firmware_phase):
+        return _phase_result("flash_firmware", failed)
 
     scaffold = validator.run("scaffold_generate", {"project_name": manifest["project_name"], "manifest": manifest})
     if failed := _stop_if_not_success(scaffold):
@@ -210,3 +220,4 @@ def run_scaffold_deploy_workflow(
         "artifacts": sorted(artifact_store.snapshot()),
         "deployed_files": device_result["deployed_files"],
     }
+

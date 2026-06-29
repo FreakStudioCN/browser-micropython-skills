@@ -8,6 +8,7 @@ def _validator(extra_capabilities=None):
         "manifest",
         "manifest_phase",
         "select_hw_manifest",
+        "firmware_flash_plan",
         "scaffold_generate",
         "scaffold_contract",
         "generate_quality",
@@ -17,7 +18,11 @@ def _validator(extra_capabilities=None):
         "deploy_plan",
         "deploy_result_judge",
     }
-    return build_default_validation_router(kinds, capabilities=set(extra_capabilities or []))
+    return build_default_validation_router(
+        kinds,
+        capabilities={"firmware_provider", *set(extra_capabilities or [])},
+        reference_mode=True,
+    )
 
 
 def test_main_browser_workflow_runs_analyze_select_scaffold_generate_deploy_happy_path():
@@ -37,10 +42,12 @@ def test_main_browser_workflow_runs_analyze_select_scaffold_generate_deploy_happ
 
     assert result["status"] == "success"
     assert result["phase"] == "deploy"
-    assert result["phase_complete"]["status"] == "success"
+    assert result["phase_complete"] ["status"] == "success"
+    assert "artifacts/firmware-flash-plan.json" in store.snapshot()
     assert result["phase_complete"]["skill_chain"] == [
         "upy-analyze-browser",
         "upy-select-hw-browser",
+        "upy-flash-mpy-firmware-browser",
         "upy-scaffold-browser",
         "upy-generate-browser",
         "upy-deploy-browser",
@@ -123,3 +130,37 @@ def test_main_browser_workflow_deploy_excludes_host_only_files():
     assert result["status"] == "success"
     assert "docs/readme.md" in store.snapshot()
     assert sorted(device.files) == ["firmware/boot.py", "firmware/conf.py", "firmware/main.py"]
+
+def test_main_browser_workflow_returns_partial_without_firmware_provider():
+    def validator_without_firmware():
+        kinds = {
+            "manifest",
+            "manifest_phase",
+            "select_hw_manifest",
+            "firmware_flash_plan",
+            "scaffold_generate",
+            "scaffold_contract",
+            "generate_quality",
+            "python_syntax",
+            "package_resolve",
+            "upypi_resolve",
+            "deploy_plan",
+            "deploy_result_judge",
+        }
+        return build_default_validation_router(kinds)
+
+    result = run_main_browser_workflow(
+        request={
+            "project_name": "blink",
+            "intent": "Blink the onboard LED",
+            "components": [{"id": "led", "type": "digital_output"}],
+        },
+        artifact_store=ArtifactStore(),
+        validator=validator_without_firmware(),
+        device=FakeDeviceAdapter({"scan", "probe", "deploy"}),
+    )
+
+    assert result["status"] == "partial"
+    assert result["phase"] == "flash_firmware"
+    assert result["capability_required"] == "browser_validate.firmware_flash_plan"
+

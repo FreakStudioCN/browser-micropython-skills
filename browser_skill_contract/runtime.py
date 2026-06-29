@@ -19,9 +19,13 @@ class SkillCatalog:
     browser_skills: set[str]
     source_to_browser: dict[str, str]
     browser_to_validate_kinds: dict[str, set[str]]
+    orchestration: dict[str, dict[str, Any]]
 
     def validate_kinds_for(self, browser_skill: str) -> set[str]:
         return set(self.browser_to_validate_kinds.get(browser_skill, set()))
+
+    def orchestration_for(self, browser_skill: str) -> dict[str, Any]:
+        return dict(self.orchestration.get(browser_skill, {}))
 
 
 def _repo_path(*parts: str):
@@ -39,11 +43,19 @@ def load_manifest(path: str = "browser_skill_manifest.json") -> SkillCatalog:
     browser_skills: set[str] = set()
     source_to_browser: dict[str, str] = {}
     browser_to_validate_kinds: dict[str, set[str]] = {}
+    orchestration: dict[str, dict[str, Any]] = {}
 
     for entry in manifest.get("skills", []):
         browser_skill = entry["browser_skill"]
         browser_skills.add(browser_skill)
         browser_to_validate_kinds[browser_skill] = set(entry.get("browser_validate_kinds", []))
+        orchestration[browser_skill] = {
+            "tier": entry.get("tier"),
+            "spine": entry.get("spine"),
+            "phase": entry.get("phase"),
+            "orchestrates": list(entry.get("orchestrates", [])),
+            "calls": list(entry.get("calls", [])),
+        }
         for source in entry.get("source_skills", []):
             if source in source_to_browser:
                 raise ContractError(f"duplicate source skill mapping: {source}")
@@ -54,6 +66,7 @@ def load_manifest(path: str = "browser_skill_manifest.json") -> SkillCatalog:
         browser_skills=browser_skills,
         source_to_browser=source_to_browser,
         browser_to_validate_kinds=browser_to_validate_kinds,
+        orchestration=orchestration,
     )
 
 

@@ -22,6 +22,7 @@ def command_catalog() -> None:
                 skill: sorted(kinds)
                 for skill, kinds in sorted(catalog.browser_to_validate_kinds.items())
             },
+            "orchestration": dict(sorted(catalog.orchestration.items())),
         }
     )
 
@@ -33,6 +34,7 @@ def command_dry_run_workflow(project_name: str) -> None:
             "manifest",
             "manifest_phase",
             "select_hw_manifest",
+            "firmware_flash_plan",
             "scaffold_generate",
             "scaffold_contract",
             "python_syntax",
@@ -41,7 +43,9 @@ def command_dry_run_workflow(project_name: str) -> None:
             "upypi_resolve",
             "deploy_plan",
             "deploy_result_judge",
-        }
+        },
+        capabilities={"firmware_provider"},
+        reference_mode=True,
     )
     device = FakeDeviceAdapter({"scan", "probe", "deploy"})
     result = run_main_browser_workflow(
