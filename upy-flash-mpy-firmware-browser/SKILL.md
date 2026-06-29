@@ -42,12 +42,13 @@ Validation kinds retained for this phase:
 ## Blockless Primitive Sequence
 
 1. `file_operation`: read the select-hw manifest.
-2. `browser_validate` (`firmware_page_resolve`): resolve the board's MicroPython download page + latest firmware file (returns `partial` until a firmware provider is loaded).
-3. `browser_validate` (`firmware_download`): fetch the resolved firmware artifact.
-4. `browser_validate` (`firmware_flash_plan`): build the flash plan for the board branch (see below).
-5. `approval_request`: confirm before mutating device state — flashing only proceeds after explicit user confirmation.
-6. Per board branch: `device_command` + `browser_validate` (`firmware_flash_execute`) for ESP32 serial flash; `uf2_manual_confirm` for Pico UF2; `approval_request` manual confirm for other boards.
-7. `phase_complete`: hand off to `upy-scaffold-browser`.
+2. `approval_request` (`firmware_action_select`): if no `firmware_action` is supplied, ask the user which operation to run (`download_and_flash` / `download_only` / `already_flashed` / `use_local_firmware` / `save_partial` / `cancel` — see below).
+3. `browser_validate` (`firmware_page_resolve`): resolve the board's MicroPython download page + latest firmware file (returns `partial` until a firmware provider is loaded).
+4. `browser_validate` (`firmware_download`): fetch the resolved firmware artifact.
+5. `browser_validate` (`firmware_flash_plan`): build the flash plan for the board branch — parsed erase/write commands + `write_offset` (see below).
+6. `approval_request` (`esp32_flash_confirm` / `manual_firmware_flash_confirm`): confirm before mutating device state — flashing only proceeds after explicit user confirmation.
+7. Per board branch: `device_command` + `browser_validate` (`firmware_flash_execute`) for ESP32 serial flash; `uf2_manual_confirm` for Pico UF2; `approval_request` manual confirm for other boards.
+8. `phase_complete`: hand off to `upy-scaffold-browser`.
 
 ## 板卡分支
 
@@ -69,6 +70,7 @@ Validation kinds retained for this phase:
 | 固件板卡名 | `hardware_selection.selected_board.firmware.board_name` | `mcu.firmware_board_name` |
 | 固件 port | `hardware_selection.selected_board.firmware.port` | 从板卡名推断 |
 | 芯片族 | `hardware_selection.selected_board.chip_family` | `mcu.chip_family` |
+| 烧录工具提示 | `mcu.flash_tool` | 从板卡族推断 |
 | 展示名称 | `hardware_selection.selected_board.display_name` | `mcu.display_name` |
 
 **解析硬规则**（由 `firmware_page_resolve` 执行，但本 skill 必须遵循）：
@@ -77,6 +79,37 @@ Validation kinds retained for this phase:
 - 仅当上游 URL 缺失/无效时，才用 `firmware_board_name` 到 `https://micropython.org/download/` 首页匹配真实下载页 slug。
 - **不要**用 `display_name`、`board_id` 或 MCU 型号直接拼下载 URL（它们仅用于展示/本地库 ID）。
 - `download_slug` = 从固件 URL path 提取或从下载首页匹配出的真实下载页 slug；`board_url` = 规范化后的板卡页 URL。
+
+若主来源与兜底来源都缺失，必须 fail-loud（`structured_error.code="missing_firmware_url"`），不要静默继续或自己拼 URL。
+
+## firmware_action 用户操作选择（approval_request）
+
+下载或烧录任何固件前，如果上游/输入没有给定 `firmware_action`，必须先发 `approval_request`（`approval_id="firmware_action_select"`）让用户选择本阶段操作。动作取值与语义：
+
+| 动作 | 含义 |
+| --- | --- |
+| `download_and_flash` | 下载最新固件并烧录（主动作）。 |
+| `download_only` | 只下载固件，不烧录；`firmware.status="partial_download_only"`。 |
+| `already_flashed` | 用户已自行烧录，跳过；输出 `success` 且 `firmware.status="skipped_user_confirmed"`。 |
+| `use_local_firmware` | 使用用户提供的本地固件文件（`firmware_override.local_path`），不再解析下载。 |
+| `save_partial` | 稍后继续；输出带 checkpoint 的 `partial`。 |
+| `cancel` | 取消；输出带 checkpoint 的 `partial`。 |
+
+若 `approval_request` 的 UI 一次只能展示有限选项，优先展示 4 个主动作（`download_and_flash` / `download_only` / `already_flashed` / `use_local_firmware`），`save_partial` 与 `cancel` 通过二次确认或后续 checkpoint 处理。审批超时按 `save_partial` 处理（`partial` + checkpoint），不要静默默认烧录。
+
+## ESP32 烧录细节与 `esp32_flash_confirm` 审批
+
+必须先用 `browser_validate` (`firmware_page_resolve`) 解析 MicroPython 板卡页的安装说明，再用 `browser_validate` (`firmware_flash_plan`) 生成擦除/写入计划。**不要把硬编码 offset 作为主要来源**：例如 `ESP32_GENERIC_C5` 当前使用 `write_flash 0x2000`，所以固定整个 C 系列的 offset 是错误的。`write_offset` 必须使用页面解析到的命令参数原值（如 `"0"`），**不要在同一阶段内混用 `"0"` 和 `"0x0"`**。
+
+烧录前的 `approval_request`（`approval_id="esp32_flash_confirm"`）必须包含：
+
+- 固件文件名和 MicroPython 板卡页面。
+- 从页面解析出的擦除/写入命令和 `write_offset`。
+- `device_command`（scan）扫描到的真实串口选项。
+- 下载模式提示：通常按住 **BOOT**，按 **EN/RESET**，再松开 **BOOT**；如果板卡说明不同，提醒用户按板卡说明操作。
+- 明确警告：烧录会擦除并重写 MicroPython 固件。
+
+用户确认（携带所选 `serial_port` 与 `baud`，如 `460800`）后，才用 `device_command` + `browser_validate` (`firmware_flash_execute`) 经 WebSerial 执行擦除/写入。烧录成功后 `flash_result` 至少记录 `port`、`baud`、`chip`、统一的 `write_offset`、`erased_first` 与日志证据。
 
 ## Pico UF2 流程
 
@@ -95,6 +128,37 @@ Validation kinds retained for this phase:
 ## 手动板卡流程
 
 对非 ESP32/Pico 板卡，只解析 MicroPython 板卡链接并展示手动说明，用 `approval_request`（`approval_id="manual_firmware_flash_confirm"`）等待用户确认。不替用户执行任何本地烧录工具提示。
+
+手动烧录审批（`manual_firmware_flash_confirm`）字段含义：
+
+| 字段 | 含义 |
+| --- | --- |
+| `summary.board_name` | 上游固件板卡名。 |
+| `summary.firmware_page` | MicroPython 官方板卡页 URL。 |
+| `summary.latest_firmware_url` | 页面中标记为 latest 的主固件链接。 |
+| `summary.latest_version` / `summary.latest_date` | latest 固件版本与日期（如 `v1.28.0` / `2026-04-06`）。 |
+| `summary.file_type` | 固件类型枚举：`dfu` / `uf2` / `bin` / `hex` / `zip`。 |
+| `summary.flash_method` | 固定为 `manual`。 |
+| `summary.tool_hint` | 页面说明提取的工具/方式：`dfu-util` / `st-flash` / `uf2-drag-drop` / `teensy-loader` / `ftp-copy` / `manual`。 |
+| `links[]` / `steps[]` / `warnings[]` | 下载/文档链接、面向用户的中文步骤、风险提示。 |
+| `commands[]` | 可选；只展示页面命令，**每项必须标记 `execute_allowed=false`，浏览器端绝不自动执行**。 |
+| `actions[]` | `confirm_flashed` / `save_partial` / `cancel`。 |
+
+## `firmware.status` 结果取值
+
+`phase_complete.payload.firmware.status` 取值（结果判定模型）：
+
+```text
+downloaded
+flashed
+uf2_copied
+manual_confirmed
+skipped_user_confirmed
+partial_download_only
+failed
+```
+
+`partial` 与 `failed` 时 `next_phase` 必须为 null。
 
 ## Runtime State And Partial Results
 
@@ -118,6 +182,43 @@ Validation kinds retained for this phase:
 - Return `partial` when the firmware provider, connected board, USB permission, or user confirmation is missing — these are recoverable.
 - Include `capability_required` (`browser_validate.<kind>` / `device_command.<action>`) and `next_action` (`load_provider`/`connect_device`/`grant_usb_permission`/`sign_in`).
 - Do not bypass Blockless primitives for local execution paths; never auto-run a board flasher without explicit user confirmation.
+
+## 断点与结构化错误
+
+`partial` / `failed` 且可恢复时，写入 checkpoint 标明 `resume_step`（恢复点分类）：
+
+```text
+load_upstream_select_hw
+select_firmware_action
+resolve_firmware_page
+download_firmware
+scan_serial_ports
+confirm_esp32_flash
+run_esp32_flash
+wait_pico_uf2_copy
+manual_firmware_flash_confirm
+phase_complete_validation
+```
+
+结构化错误字段：`code`（稳定机器可读错误码）、`message`（面向用户，优先中文）、`severity`（`info` / `warning` / `error` / `fatal`）、`recoverable`（能否恢复）、`retryable`（能否同参重试）、`source`（出错的步骤/校验）、`field`（可选 JSON 字段路径）。建议错误码：
+
+```text
+invalid_upstream_phase
+missing_firmware_url
+firmware_page_lookup_failed
+latest_firmware_not_found
+download_failed
+user_saved_partial
+user_cancelled
+serial_port_missing
+flash_execute_failed
+pico_copy_not_confirmed
+manual_flash_not_confirmed
+artifact_missing
+phase_complete_invalid
+```
+
+错误必须 fail-loud：缺少固件 URL、解析失败、下载失败、未选串口等，按上表输出结构化错误并停在可恢复 checkpoint，不要静默跳过或伪造成功。
 
 ## Domain Flashing vs browser_validate (boundary)
 

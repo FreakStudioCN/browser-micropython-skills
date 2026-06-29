@@ -37,7 +37,7 @@ Validation kinds retained for this skill:
 
 1. `file_operation`: read the changeset (modified files / diff) from the project store.
 2. `browser_validate` (`review_context`): semantically search the ~19.5K-pattern database for matches to the changeset; return the matched patterns with severity + domain (returns `partial` until the review provider/index is loaded).
-3. `browser_validate` (`review_verify`): check the produced findings; high/critical findings block.
+3. `browser_validate` (`review_verify`): check the produced findings; `blocking` findings block.
 4. The LLM synthesizes the review using the matched patterns as context.
 5. `phase_complete`: return the review context and findings.
 
@@ -57,7 +57,7 @@ Validation kinds retained for this skill:
 
 ## Failure Conditions
 
-- Return `failed` when `review_verify` reports blocking (high/critical) findings, or the changeset is empty/unreadable.
+- Return `failed` when `review_verify` reports `blocking` findings, or the changeset is empty/unreadable.
 - Return `partial` when the review provider / pattern index is not loaded, or project-store access is missing.
 - Include `capability_required` (`browser_validate.<kind>`) and `next_action` (`load_provider`/`sign_in`).
 - Do not bypass Blockless primitives for local execution paths.
@@ -87,6 +87,17 @@ The pattern database mirrors the maintainer's historical review focus — prefer
 
 **Component** (which part of the codebase):
 `py_core` (py/) · `extmod` (extmod/) · `port_specific` (ports/) · `drivers` (hardware drivers) · `tools` (build/dev tools) · `tests` (test suite) · `docs` (documentation) · `build_system` (build config).
+
+## Standalone pattern search (no changeset)
+
+Beyond changeset-driven review, the same ~19.5K-pattern index supports **topic search** — finding review examples without supplying a diff (e.g. "what has been said about memory allocation", "examples of GPIO-configuration feedback", "show me the maintainer's style"). Query the index by free text and optionally filter by the taxonomy axes:
+
+- **domain** filter (e.g. `memory`, `correctness`) — one of the 12 domains above.
+- **severity** filter — `blocking` / `suggestion` / `nitpick`.
+- **component** filter (e.g. `py_core`, `port_specific`) — one of the 8 components above.
+- **style-only** filter — return only the comments that exemplify the maintainer's review style.
+
+This is the same semantic search as `review_context`, issued with a topic query instead of a changeset; present the matched comments (with their domain/severity tags) directly and summarize the common themes. Use it when the user asks about a pattern/topic rather than handing you specific code to review.
 
 ## Two-step verification
 
