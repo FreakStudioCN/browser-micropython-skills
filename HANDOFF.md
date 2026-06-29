@@ -15,6 +15,53 @@ Target repo: `C:\Users\Haipeng Wu\Desktop\blockless\browser-micropython-skills-n
 Reference of truth (the 1:1 source — confirmed by the user): `FreakStudioCN/MicroPython_Skills` = on disk `C:\Users\Haipeng Wu\Desktop\blockless\MicroPython_Skills_upstream` (canonical, has the remote; also vendored at `cursor_for_hardware/third_party/MicroPython_Skills` — **never edit third_party/**). The no-remote clone `…/browser-micropython-skills` was the original content source (redundant now).
 Base commit `bfb79a1`. **Work is COMMITTED + PUSHED**: `1ad02b6` (migration + orchestration metadata + host-execution scrub) and `5fbaf2a` (1:1 audit — restored dropped domain contracts in 7 skills). Working tree clean.
 
+---
+
+# ⭐ LATEST — 2026-06-29 session (rounds 5–7): full 平移 audit + plugin-sibling restoration + repo cleanup
+
+> This section supersedes the round 1–4 history below where they conflict. **Most important structural change: the repo no longer contains the old upstream/`-plugin`/`-test` source dirs** — they were deleted (commit `69fac8a`). The round 1–4 text below still refers to them as present; that history is preserved for context only.
+
+## Goal (this session)
+
+The user asked to re-verify, **one skill at a time, against the reference of truth** (`MicroPython_Skills_upstream`), that each `*-browser` skill is a faithful **平移 (1:1 lateral port)** — identical design / detail / domain knowledge, with ONLY the execution layer swapped to the 5 Blockless primitives — and to quantify the misalignment. Then (their follow-up) to **delete the redundant old source skills** from this repo.
+
+## Current Progress (DONE, committed + pushed, working tree clean)
+
+Three commits on `main` this session:
+- **`8616073`** — restored `upy-flash-mpy-firmware-browser` (it was a fresh rewrite that had GUTTED real firmware/ESP32 domain knowledge) + fixed `review-browser` (high/critical→`blocking/suggestion/nitpick` severity inconsistency; restored standalone topic-search + `--style-only`).
+- **`da17142`** — restored plugin-sibling domain drops in `upy-select-hw-browser` (I2S allocation rule, `flash_tool`/`board_unavailable` enums, `pin_review`/`user_pin_constraints` models, UART-reuse rule, cold-driver rule, pin_options remap; fixed stale single-`i2s` type row), `upy-generate-browser` (Scheduler `timer_id` port rule, boot fatal-guard + `error_cb`, 2 `check_generated_semantics` anti-patterns, async anti-circumvention rule, `cold_driver_required` gating, doc_evidence specific-`machine.*` precision, ASCII-comment rule, `_thread` mode), and `upy-scaffold-browser` (`docs/.gitkeep` + no-fake-tools rule).
+- **`69fac8a`** — **deleted 35 redundant old dirs (326 files)**: all non-`-browser` skill copies + `-plugin`/`-test` variants + `shared-plugin-scripts` + `upy-project-gen-toolchain-spec`. Fixed 2 browser skills that referenced now-deleted resources (`upy-analyze-browser` templates/mock-messages/`references/v0-protocol.md` → its own in-file field models + `contracts/`; `upy-pkg-guide-browser` `scripts/search_awesome.py` description → attributed to the `browser_validate (awesome_micropython_search)` provider).
+
+**Final repo surface:** 27 `*-browser/` skills + `browser_skill_contract/` + `contracts/` + `adapters/` + `docs/` + `tests/`. Every step gated: `python -m pytest tests -q` → **42 passed**; the 3 host-execution leak scans → **empty**.
+
+**Misalignment verdict (the user's original question):** of 27 skills, all domain knowledge is now aligned. The lossy ones were `flash` (worst — gutted, ~45/100 before fix), then `select-hw` (88) and `generate` (93); `analyze` (94) and `scaffold` (92) were already clean. All restored to faithful 平移.
+
+## What Worked
+
+- **Diff each browser skill against its `-plugin` sibling, NOT just the base skill.** This is the key lesson. Each `*-browser` skill MERGES two upstream files: `upy-X` (base) + `upy-X-plugin` (content-rich). The original audits compared only against the base skill → a browser skill looked "richer/aligned" while it had actually condensed away domain knowledge that lived in the `-plugin`. Re-diffing vs the `-plugin` is what exposed the select-hw/generate drops.
+- **Why the drops happen:** in the `-plugin`, domain rules are INTERLEAVED with protocol-envelope JSON (~30–50% of each `-plugin` file is repeated `start_phase`/`state`/`phase_complete`/`approval_request` envelopes). When the migration stripped the envelopes, it dropped domain rules tangled up with them. The protocol boilerplate is correctly abstracted into `contracts/*.schema.json` (every browser skill cites it) — do NOT re-inline it; only restore the DOMAIN enums/rules, which belong in the skill.
+- **Parallel reader-subagents** (one per skill-cluster / one per pair) returning a strict structured verdict (SCORE / VERDICT / DROPPED_DOMAIN / …) gave fast, skeptical breadth; **Codex (`codex:rescue`/`codex:codex-rescue`, foreground) as an independent gate** confirmed flash's 9/9 domain drops and caught review gaps the readers under-weighted.
+- **Token-presence provenance scan** (`grep -c` a distinctive token in browser vs base vs plugin) cheaply proves "nothing INVENTED" — but it does NOT prove "nothing DROPPED"; only a section-by-section content diff does. Don't stop at the grep.
+- **Delete-then-`pytest` as the safety net:** listed the keep/delete sets, deleted, then ran pytest — it immediately caught that `adapters/` had been wrongly deleted (restored via `git checkout HEAD -- adapters`).
+- **Restoring with browser-appropriate values** to satisfy the leak gate: e.g. `flash_tool` ESP value = `serial` (not the host flasher name), renamed `esptool_failed`→`flash_execute_failed`.
+
+## What Did NOT Work
+
+- **The first full audit's "26/27 aligned / browser is richer than upstream" was over-optimistic** — because it compared vs the BASE skill only. "Richer than upstream" is NOT automatically good for a 1:1 port; it's only fine if the extra content traces to an upstream `-plugin` sibling (it did, via merge), and it MASKED the fact that other plugin domain content was dropped. Always diff vs the `-plugin`.
+- **Almost deleted `adapters/`** with the old source dirs — `adapters/` is browser-contract infrastructure (device-binding / validation / artifact-store docs) required by `tests/test_browser_conversion_contract.py::test_contract_files_exist`, NOT an old skill copy. Keep-set for deletion = `*-browser`, `browser_skill_contract`, `contracts`, `adapters`, `docs`, `tests`.
+- **A naive "does any .py read an old dir" grep is not sufficient** to clear a deletion — `test_browser_conversion_contract.py` references `adapters/*` and `docs/*` by hardcoded path lists, and the catalog uses a string `source→browser` map (not a fs scan). Run pytest after deleting; don't trust a single grep.
+
+## Next Steps (all optional / deferred — nothing blocking)
+
+1. **Docs hygiene:** update the repo `README.md` (and this HANDOFF's older sections) to describe the new clean structure — they predate the deletion and still imply the old source dirs are present.
+2. **`upy-analyze-browser` resource gap (acknowledged, repointed, not fully closed):** its SKILL.md tells the LLM to follow envelope/checkpoint/structured_error/artifact shapes; those shapes are defined in its own prose + `contracts/` now (the broken `templates/*.json` refs were repointed), but there are no longer concrete example-message files bundled. If worked examples are wanted, add real ones under the browser dir or expand `contracts/` — don't resurrect the deleted plugin templates.
+3. **Deferred (still true):** `upy-simulate-browser` still *generates* sim code importing host `threading`/`rich`/`tkinter` — resolve when the `simulate_run` provider runtime is decided. Reference `browser_skill_contract/workflow.py` firmware phase models only `firmware_flash_plan`, not the full resolve→download→plan→approval→execute chain (round-4 Codex MUST-FIX #7).
+4. **Source of truth for re-audits:** `MicroPython_Skills_upstream/` (has remote `FreakStudioCN/MicroPython_Skills`); each browser skill = base `upy-X` ⊕ `upy-X-plugin`. The `webserial-*-browser` map to `mpremote-*`; `upy-flash-mpy-firmware-browser` maps to `upy-flash-mpy-firmware-plugin`.
+
+---
+
+# ⬇️ HISTORY (rounds 1–4, 2026-06-28) — preserved for context; repo structure described below is now stale (old dirs deleted)
+
 ## Post-handoff correction (2026-06-28) — one skill was only half-migrated
 
 The "COMPLETE and verified" claim below was **overstated**. A follow-up audit found `webserial-live-session-browser/SKILL.md`
