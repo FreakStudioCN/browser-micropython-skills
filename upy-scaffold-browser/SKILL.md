@@ -140,6 +140,29 @@ options:
 
 ---
 
+#### Step 1 的结构化配置契约
+
+`approval_request`(`scaffold_config`) 用 `item_groups` 表达两组选择：
+
+| group | 选择性 | 选项 id |
+|-------|--------|---------|
+| `scheduler_mode` | 单选 | `mode_timer` / `mode_async` / `mode_thread` |
+| `extra_modules` | 多选 | `module_logger` / `module_time_helper` / `module_maintenance` / `module_flash` / `module_log_tools` |
+
+**调度模式推荐规则**（只影响默认 `selected/meta`，不限制用户选择）：`requirements.network == "wifi"` → `mode_async`；器件或 `special_requirements` 含 lcd/lvgl/display → `mode_async`；其他 → `mode_timer`。
+
+**模块 id → 输出映射**：
+
+| id | 输出 |
+|----|------|
+| `module_logger` | `firmware/lib/logger/*` |
+| `module_time_helper` | `firmware/lib/time_helper.py` |
+| `module_maintenance` | `firmware/tasks/maintenance.py` |
+| `module_flash` | `tools/flash_device.py` |
+| `module_log_tools` | `tools/read_device_log.py` + `tools/log_report.py` |
+
+**非法组合**：未选 `module_maintenance` → `main.py` 不得 import 或调用 `maintenance_tick`；模式非 `timer` → 不得注入 `firmware/lib/scheduler/timer_sched.py`。
+
 ### Step 2: 按模式处理
 
 #### 模式 A: Timer tick（默认）
@@ -277,3 +300,8 @@ while True:
 - **board.py 不做硬件初始化**：只存常量映射，实例创建在 main.py
 - **conf.py 不放敏感数据**：无 Wi-Fi 密码、API Key
 - **生成结束自动 `browser_validate` 校验**：`python_syntax` / `scaffold_contract` 自动验证，不通过打印 warning
+- **`Scheduler` 端口规则（timer 模式）**：保留内部库默认 `timer_id=-1`（RP2/Pico、Zephyr 只支持虚拟 Timer）；端口差异在 `main.py` 装配层解决——仅 RP2/Pico/RP2040/RP2350、Zephyr 显式生成 `Scheduler(timer_id=-1, tick_ms=...)`，其他 MCU 生成 `Scheduler(timer_id=0, ...)` 或已验证的非负硬件 Timer ID，不得生成隐式 `Scheduler(...)`/`Scheduler(tick_ms=...)`
+- **GPIO 方向来自 `pinout[].type`**：`gpio_out`/`DATA`/`DO`/`OUT`/`GAIN`/`SD` 默认 `Pin.OUT`，`gpio_in` 默认 `Pin.IN`——不要把 WS2812 DATA 这类输出脚生成成 `Pin.IN`
+- **`main.py` 启动期 fatal guard**：装 rotating logger 后关键启动状态 `print + logger` 双写；未捕获的启动/装配异常必须 `sys.print_exception()` 打串口 + `logger.exception()` 写 `/log/run_*.log`，不依赖 MPY 自动落盘
+- **生产部署过滤规则（写入 manifest 供 deploy 消费）**：`main.py`/`boot.py`/`conf.py` 始终以 `.py` 部署不编译；`drivers/**/mock.py` 是测试替身不得编译/上传，stale `mock.mpy` 也跳过——deploy 的 `deploy_plan` 据此判定禁止产物
+- **最终交付契约**：`project-manifest.json` 经 `file_operation` 写入项目根；`phase_complete.artifacts` 至少含 `file_tree` 与 `file_list`；success 时 `next_phase=upy-generate-browser`，partial/failed 时 `next_phase=null`

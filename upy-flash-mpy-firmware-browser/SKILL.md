@@ -59,6 +59,25 @@ Validation kinds retained for this phase:
 
 **串口选择**：真实运行必须用 `device_command`（scan）枚举真实串口并由用户选择；只有 mock/sample 测试可用固定串口（如 Windows `COM3`、Linux `/dev/ttyUSB0`、macOS `/dev/cu.usbmodem1101`）做 JSON 与命令规划校验。
 
+## 固件解析规则（板卡事实）
+
+只从 select-hw 的 `phase_complete.payload.manifest_content` 读取板卡事实，字段优先级如下：
+
+| 取值 | 优先来源 | 兜底来源 |
+| --- | --- | --- |
+| 固件 URL | `hardware_selection.selected_board.firmware.url` | `mcu.firmware_url`；都缺失才用固件板卡名到下载索引匹配真实下载页 |
+| 固件板卡名 | `hardware_selection.selected_board.firmware.board_name` | `mcu.firmware_board_name` |
+| 固件 port | `hardware_selection.selected_board.firmware.port` | 从板卡名推断 |
+| 芯片族 | `hardware_selection.selected_board.chip_family` | `mcu.chip_family` |
+| 展示名称 | `hardware_selection.selected_board.display_name` | `mcu.display_name` |
+
+**解析硬规则**（由 `firmware_page_resolve` 执行，但本 skill 必须遵循）：
+
+- **不要信任缓存的 `latest_version`**：必须优先用上游 `firmware.url`（其次 `mcu.firmware_url`）访问 MicroPython 官方板卡页解析真实 `(latest)` 固件与安装说明。
+- 仅当上游 URL 缺失/无效时，才用 `firmware_board_name` 到 `https://micropython.org/download/` 首页匹配真实下载页 slug。
+- **不要**用 `display_name`、`board_id` 或 MCU 型号直接拼下载 URL（它们仅用于展示/本地库 ID）。
+- `download_slug` = 从固件 URL path 提取或从下载首页匹配出的真实下载页 slug；`board_url` = 规范化后的板卡页 URL。
+
 ## Pico UF2 流程
 
 `firmware_page_resolve` 解析最新 `.uf2` 后，用 `approval_request` 展示步骤并等待 `copied_uf2`：

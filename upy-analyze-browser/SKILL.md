@@ -446,6 +446,19 @@ V0 先写进协议和 skill 说明，不实现完整 runtime：
 builtin_runtime / micropython_lib / upypi / awesome-micropython / github / local / cold-driver / none
 ```
 
+**driver.source 分类硬规则（不可混为一谈）：**
+
+先回答两层问题，不要把“固件已提供底层外设 API”和“已找到具体器件驱动包”混成同一结果：
+
+- **`builtin_runtime`**：MicroPython 固件已提供底层运行时/外设 API（`machine.Pin`/`ADC`/`I2C`/`SPI`/`UART`/`I2S`、`network`、`bluetooth`、`neopixel`）。这类**不报“无驱动”**，标 `builtin_runtime` + `driver.module` + `notes`。但 `builtin_runtime` ≠ 已找到该具体器件现成驱动包——挂在 I2C/SPI/UART 上的具体器件仍要继续查 `upypi`。
+- **`micropython_lib`**：官方生态通用库/中间件（如 `aioble`），区别于固件内置，也区别于普通 GitHub 第三方。**不是**具体器件驱动的默认首选源；若本质是器件驱动，优先 `upypi`。
+- **具体器件驱动优先级**：`upypi` → `awesome-micropython` → `github` → 其他明确可验证的兼容来源。`source` 取这三者之一时必须来自 `upy-pkg-guide` 或等价 adapter 的**结构化结果**，不得由 LLM 字符串拼接或规则推断直接断言；mock/test 数据必须标记，不得伪装成真实查询。
+- **硬约束**：不得把 Python `PyPI` 当 MicroPython 驱动主搜索入口；只发现普通 Python 包不算可用驱动；固件内置能力**不得**写成 `local`（`local` 只用于确实存在本地私有驱动资产）；依赖 `machine.*`/`network`/`bluetooth`/`neopixel` 却写成 `none` 视为 analyze 输出**错误**。
+- **`none`** 仅用于：确实不是内置能力 **且** `upypi`/`awesome-micropython`/`github`/`micropython_lib` 均无可用驱动。
+- “不是单一型号、而是一大类实现方案”的器件（如“土壤温湿度传感器”可拆为 ADC 电容式 / UART-RS485-Modbus 一体式 / I2C-SPI 数字式 / 组合方案），必须**先拆实现族再做驱动搜索**。
+
+**最小 manifest 交付**：`manifest_content` 必须保留下游所需字段——`requirements.*`、设备字段、行为/notes、driver 包字段（`package_name`/`version`/`install_cmd`/`api_ref`/`repo_url`）；`api_ref` 优先结构化对象（`{"init":...,"read":...}`），来源仅一句摘要时先写 `notes`，不要伪装成完整 API。
+
 ### Step 6: 强制校验 manifest
 
 必须调用 `browser_validate` (`manifest`) 校验 `manifest_draft`，得到 validated manifest（provider 未加载时返回 `partial`）。

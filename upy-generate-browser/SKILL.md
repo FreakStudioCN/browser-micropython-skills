@@ -519,6 +519,24 @@ Phase 2-7 完成后，LLM 执行最终审查，逐项核验：
 - **所有 I2C 驱动工厂必须导出 `scan_<name>_i2c(i2c, address)` 函数**：不依赖驱动实例，仅扫描 I2C 总线检查地址是否存在，为后续调试/部署 skill 提供硬件连通性判断依据。软件可配置地址的器件（如 GT911）需查阅 example.py 确定检测策略
 - **日志写入设备文件系统**：main.py 启动时安装轮转日志（`lib.logger.install_rotating`）。关键流程节点 `print()` + `lib.logger` 双写（REPL 即时可见 + 设备端持久化）；纯调试细节可只用 `print()`。即使会话断开，日志仍可通过 `device_command` 读取设备端文件
 
+## 成功契约与安全规则（domain）
+
+**用户补充的路由**：运行前可询问用户补充业务行为/阈值/周期/状态机/日志/模拟场景；但**新增硬件或改引脚必须回退**到 analyze/select-hw/scaffold，不在 generate 内擅自加硬件。
+
+**云 / 第三方 API 安全**：需求涉及 LLM/ASR/TTS/视觉/IoT-MQTT/Webhook/REST 等付费或带凭据的云服务时，必须经 `approval_request` 让用户确认：服务商、官方文档/控制台/价格链接、是否已开通计费、API Key 是否就绪、是否需要网关/代理。**真实 token 绝不写入代码**；`conf.py` 只存非密钥 endpoint、模型名、超时、重试、功能开关与 secret 名称。云服务为 `mock_only` 或 `blocked` 时**不得进入 deploy**，并在 `manifest_content.generate.cloud_integrations[]` 记录。
+
+**外设 API 文档证据**：用到 `machine`/`network`/`neopixel`/`esp32`/`rp2`/`bluetooth` 等硬件外设 API，必须在 `manifest_content.generate.doc_evidence[]` 记录 `module` + 官方 MicroPython `url` + `reason`；仅 CPython 链接或页面内容不足 → 补端口文档证据或输出 partial。
+
+**部署就绪契约（success 必须满足）**：
+
+- `runtime_dependencies.mip`：生成的固件/设备测试需要 mip 包（如设备端 `unittest`）时必须声明，deploy 阶段用 `mip install` 安装，不把 micropython-lib 源码 vendor 进项目。
+- `deploy_plan.source_only` = `firmware/main.py`、`firmware/boot.py`、`firmware/conf.py`（这三个以 `.py` 部署）；`deploy_plan.upload_exclude` = `firmware/drivers/**/mock.py`、`firmware/drivers/**/mock.mpy`。Mock 是测试替身，**绝不作为运行时固件**。
+- 设备端测试默认放 `device/tests/`，验证协议/状态/任务/驱动/配置契约，不只是 import smoke。
+- success 不得遗留或提交 CPython 缓存（`__pycache__/`、`*.pyc`）。
+- 语音/传感器/云/状态机等跨 tick 业务流，`generate_plan` 必须声明 `data_flow_contract[]`（producer/consumer/invariant/storage）并为关键数据流生成 contract test。
+
+**partial/failed 判定**：`NETWORK_DISCONNECTED`、`RATE_LIMITED`、`UPSTREAM_TIMEOUT` 视为可重试中断；`TOKEN_BUDGET_EXCEEDED`、`MODEL_CONTEXT_EXHAUSTED`、`CANCELLED_BY_USER` 非可重试（除非用户改预算/模型/意图）。校验或最终一致性检查失败 → 改 `partial`/`failed`、`next_phase=null` 并记录 structured error。
+
 ## 与其他 skill 的关系
 
 - ← `upy-scaffold-browser`：输入骨架 + manifest

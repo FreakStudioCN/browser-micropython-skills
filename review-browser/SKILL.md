@@ -69,8 +69,50 @@ Validation kinds retained for this skill:
 ## How it works
 
 1. Provide the changeset (modified files or a diff) from the Blockless project store — `review_context` accepts changesets of any size and chunks multi-file diffs internally for embedding.
-2. `review_context` returns the most relevant historical review patterns, each tagged with severity (e.g. blocking / non-blocking) and domain (e.g. memory, ISR, API design, style).
+2. `review_context` returns the most relevant historical review patterns, each tagged with a severity and a domain (see the taxonomy below).
 3. Use the matched patterns as review guidance: for each changed area, surface the patterns that apply, then write concrete, actionable review comments grounded in those precedents.
-4. `review_verify` gates the findings; high/critical findings must be addressed before the review is considered clean.
+4. `review_verify` gates the findings; blocking findings must be addressed before the review is considered clean.
 
 The pattern database mirrors the maintainer's historical review focus — prefer its precedents over generic advice when they apply to the changed code.
+
+## Categorization taxonomy
+
+`review_context` tags every matched pattern (and you tag every finding you write) along three axes — the same taxonomy the maintainer's pattern database is categorized by. Use these exact values so findings filter and aggregate consistently.
+
+**Domain** (what the finding is about):
+`correctness` (logic bugs, edge cases, error handling) · `code_style` (formatting, naming) · `api_design` (public interfaces, function design) · `memory` (allocation, leaks) · `performance` (speed, efficiency) · `portability` (cross-platform) · `documentation` (comments, clarity) · `testing` (coverage, quality) · `security` (vulnerabilities) · `architecture` (design patterns, structure) · `build_system` (build config) · `error_handling` (error paths, recovery).
+
+**Severity** (how strongly it must be acted on):
+`blocking` (must fix before merge) · `suggestion` (recommended improvement) · `nitpick` (minor style/preference).
+
+**Component** (which part of the codebase):
+`py_core` (py/) · `extmod` (extmod/) · `port_specific` (ports/) · `drivers` (hardware drivers) · `tools` (build/dev tools) · `tests` (test suite) · `docs` (documentation) · `build_system` (build config).
+
+## Two-step verification
+
+After assembling findings, run `review_verify` to cross-check each against the actual changeset before presenting — this drops false positives from pattern-matching without context.
+
+Format each finding as a structured record:
+
+```json
+{
+  "file": "extmod/asyncio/stream.py",
+  "line": 42,
+  "severity": "blocking",
+  "domain": "correctness",
+  "description": "POLLHUP not handled in ioctl bitmask",
+  "diff_hunk": "the relevant diff hunk text"
+}
+```
+
+`review_verify` returns one verdict per finding:
+- **confirmed** — valid; keep (optionally adjust severity).
+- **partially_valid** — has merit but needs adjustment; update severity/description.
+- **false_positive** — wrong; drop it from the review.
+- **inconclusive** — could not be determined; use judgment.
+
+Drop false positives, adjust partially-valid findings, then present the verified set as the final review.
+
+## Data scope
+
+The pattern database holds **~19.5K categorized review comments** from `micropython/micropython` and `micropython/micropython-lib` (2013–2026): PR review comments, issue comments, and review verdicts. It is the authority for what good MicroPython review looks like — cite the actual matched comments when referencing a precedent, and prefer them over generic advice when they apply.

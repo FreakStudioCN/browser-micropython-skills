@@ -275,6 +275,45 @@ pinout 增加条目：
 
 ---
 
+#### Step 2D: 引脚安全分级与决策证据（domain 契约）
+
+引脚事实源：板卡库有 board JSON 时以**完整 board JSON** 为 `firmware`/`pin_layout`/`restricted_gpio`/`onboard_peripherals` 的事实源；否则以用户确认的 pinout 图识别结果为准。`selected_board` 摘要不能替代完整事实。
+
+**MCU 候选排序（未指定 MCU 时）**：候选池优先 Pico/RP2 + ESP32 系列；WiFi/BLE 加分 ESP32/Pico W，AI/语音/摄像头加分 ESP32-S3，低功耗加分 ESP32-C3，纯 GPIO/新手加分 Pico/Pico W。默认排序 Pico/Pico W → ESP32 DevKit → ESP32-S3 → ESP32-C3，输出 Top1 + Top2 备选。用户在 select-hw 要求**跨 MCU/芯片族/固件目标**换板 → 不出 success，输出 partial/checkpoint 回 analyze 重新确认。
+
+**引脚分配规则**：I2C 默认共享一条总线并优先 `default_bus_pins`，`i2c_addr` 冲突 → 改第二条或 partial；SPI 共享 MOSI/MISO/SCK、每器件独立 CS；UART 避开 REPL/USB；ADC 仅 ADC-capable 脚；GPIO 避开 boot/strapping、flash/PSRAM、USB OTG、只读脚；电源与 GND 必须进 `pinout`。用户接线优先保留但必须过 restricted/occupied 校验，**非法接线不得静默成功**；命中硬禁用脚/方向不符/被 `always_used` 板载外设占用 → 输出 `partial`、`checkpoint.resume_step=pin_assignment`、在 `structured_errors` 说明，**不自动换脚后继续 success**。
+
+`restricted_gpio` 分级：
+
+| board 字段 | 默认策略 | 校验级别 |
+| --- | --- | --- |
+| `flash_psram_occupied` | 禁止使用 | error |
+| `reserved` / `internal_only` | 禁止使用 | error |
+| `usb_serial_pins` | 默认禁止，除非明确不用 USB 串口或用户显式接线 | error/warning |
+| `strapping` / `boot` | 默认避开；必须用时写 warning 交 `pin_plan_review` | warning（strict 为 error） |
+| `input_only` | 只能用于输入类 pin | error |
+| `adc_only` | 只能用于 ADC 输入 | error |
+| `adc2_wifi_conflict` | 仅 `type=adc` 且 WiFi 启用时冲突；数字用途可用但须说明 | ADC=error，数字=warning |
+| `onboard_peripherals[].occupied_pins` | `always_used=true` 禁止；否则避开或说明释放原因 | error/warning |
+
+`pinout[].type` 枚举：`power_3v3` `power_5v` `gnd` `i2c_data` `i2c_clock` `spi_mosi` `spi_miso` `spi_sck` `spi_cs` `uart_tx` `uart_rx` `gpio_out` `gpio_in` `gpio_in_pullup` `adc` `pwm` `i2s_bck` `i2s_ws` `i2s_data_in` `i2s_data_out` `wifi_internal` `reserved`。
+
+`pinout[]` 必填字段：`device` / `pin_name` / `gpio` / `type`（取上方枚举）；可选 `bus` / `i2c_addr` / `physical_pin` / `side` / `pos` / `notes`；建议 `source`（`default_bus`/`auto_assigned`/`user_wiring`/`onboard_peripheral`/`power`）。电源/地必须按真实 rail：`gpio` 为 `GND`/`3V3`/`5V` 时 `type` 必须为 `gnd`/`power_3v3`/`power_5v`，不得伪装成普通 GPIO。
+
+**结构化 `pin_decisions[]`（必须保留在 `manifest_content`，自然语言 notes 不能替代证据）**：每条含 `device` / `pin_name` / `assigned_gpio` / `decision_type` / `source` / `evidence` / `requires_user_review`，可选 `review_prompt` / `deviation`。
+
+- `decision_type` 枚举：`use_default_bus` `auto_assign_free_gpio` `remap_default_conflict` `avoid_restricted_gpio` `avoid_onboard_occupied` `reuse_onboard_peripheral` `fixed_power_tie` `user_wiring` `manual_review_required`。
+- `deviation`：`from_gpio` / `to_gpio` / `reason_code` / `evidence_path` / `evidence_value` / `validator_action`（`error`/`warning`/`manual_review`）。
+- `reason_code` 枚举：`restricted_gpio` `default_bus_conflict` `onboard_occupied` `not_exposed` `user_requested` `fixed_power_tie` `insufficient_board_data`。`onboard_occupied` 的 `evidence_path` 必须指向 `onboard_peripherals[].occupied_pins` 且 `evidence_value` 与 `from_gpio` 一致，否则判 `pin_decision_invalid` 或转 `manual_review_required`。
+- 配置/模式/使能/地址/增益/启动控制脚（`ADDR`/`BOOT`/`CFG`/`EN`/`GAIN`/`MODE`/`SEL` 等）固定接 `3V3/GND/5V` 时用 `decision_type=fixed_power_tie`、`source=fixed_power`，并给 `review_prompt`。
+
+**审批安全门**：
+
+- `approval_request`(`board_unavailable`)：用户指定板卡不在库/无 `pin_layout` 时，推荐同系列或功能相似且有 `pin_layout` 的已知板卡，允许改选或手动描述接线。
+- `approval_request`(`pin_plan_review`)：条件可用脚、配置脚硬接、默认总线偏离、板卡资料不足等风险统一进 warnings/notes，由用户在此门确认或改脚后才算整体验收。GPIO 汇总（`used_gpio` / `unused_gpio` / `restricted_or_occupied_gpio`）必须从完整事实与最终 `pinout` 计算，不得手写静态列表。
+
+---
+
 ### Step 3: BOM 生成
 
 ```
