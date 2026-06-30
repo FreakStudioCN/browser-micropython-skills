@@ -38,6 +38,7 @@ Validation kinds retained for this phase:
 ## Outputs
 
 - Generated firmware files written to the Blockless project store: `firmware/lib/`, `firmware/drivers/*/__init__.py` (factory) + `mock.py`, task files, `conf.py`, `main.py`, and `test/` files.
+- `firmware/preview.py` + `firmware/preview.json` — the browser live-Preview (host-driven `step()` + canvas descriptor; see Phase 5.6).
 - artifacts/generate-quality.json
 - `phase_complete` for `generate` with `status`, `evidence`, `artifacts`, `next_phase` (`upy-deploy-browser`), and a recoverable `next_action` when needed.
 
@@ -45,7 +46,7 @@ Validation kinds retained for this phase:
 
 1. `file_operation`: read the scaffold manifest, the `firmware/` skeleton, and prior artifacts.
 2. `browser_validate` (`package_resolve`, `upypi_resolve`): resolve each driver package; the loaded Blockless package provider returns the driver `.py`, README, and example contents (returns `partial` until a provider is loaded).
-3. Apply the generation rules below (LLM-driven; see the domain/validate boundary section): factory + Mock + tasks + conf.py + main.py + tests.
+3. Apply the generation rules below (LLM-driven; see the domain/validate boundary section): factory + Mock + tasks + conf.py + main.py + **preview.py/preview.json (Phase 5.6)** + tests.
 4. `file_operation`: write generated files to the project store.
 5. `browser_validate` (`python_syntax`, `generate_quality`, `mpy_compile`): objective validation of the generated files.
 6. `approval_request`: confirm any driver-source modification (DI injection / line-ending fix) before overwriting a downloaded driver.
@@ -379,6 +380,66 @@ _log = getLogger("main")
 6. **Scheduler `timer_id` 端口兼容（硬规则）**：只有 RP2/Pico/RP2040/RP2350 和 Zephyr 用 `Timer(-1)` / `Scheduler(timer_id=-1)`（这些端口需要虚拟定时器；保留 scaffold 的 `timer_id=-1` 默认，不要为了端口兼容重写 scaffold 拥有的 `lib/scheduler/timer_sched.py`）。其他 MCU/端口目标必须传显式合法的非负硬件 timer id，如 `Scheduler(timer_id=0, error_cb=...)`；当 scheduler 默认映射到 `Timer(-1)` 时，不得生成隐式 `Scheduler()` / `Scheduler(tick_ms=...)`。
 6a. **Scheduler API 一致性（硬规则）**：main.py 的任务注册必须与 scaffold 拥有的 `lib/scheduler/timer_sched.py` **实际存在的方法**一致——调用 `add_task(callback, interval_ms, name=None)`，**不得**调用模块未定义的方法（如 `register(...)`），否则设备端 `AttributeError`。main 装配层与 scheduler 实现是两个独立生成面，必须共享同一 API 契约；生成后核验 `Scheduler` 的构造签名与注册方法名确实由 `timer_sched.py` 定义（`SCHEDULER_API_OR_TIMER_PORT_MISMATCH`）。同理 `lib.logger` 只调用 `install_rotating` 等模板真实导出的函数。
 
+## Phase 5.6: 浏览器实时预览（live preview — preview.py + preview.json）
+
+除可烧录的自治固件外，generate **必须**额外产出"浏览器实时交互预览"的两个文件，供 Blockless Web Builder 的 Preview 面板即时运行：主机（浏览器）持有时钟，每 ~100ms 调用一次 `step(inputs_json)`，用户拖动滑块 / 拨动开关 → 真实 MicroPython-WASM 运行 `step()` → 设备状态即时反应。
+
+**这与 `upy-simulate-browser` 的自治 `sim_main.py` 不同**：preview 是**主机驱动的纯函数 `step()`**——没有 `asyncio`、没有 `while` 守护循环、不 `import machine`。`main.py` 仍是真实烧录目标，`preview.py` 只供浏览器预览、**不烧录**。
+
+### `firmware/preview.py` 契约
+
+```python
+import json
+from drivers.<name>_driver.mock import Mock<Name>   # 复用 generate 已产出的 Mock 层
+# ...为每个被预览的器件实例化 Mock（构造参数取合理默认）...
+
+def step(inputs_json):
+    inputs = json.loads(inputs_json)
+    # 1) 把 inputs 的每个 key 注入对应 Mock 的内部状态（传感器读数 / 输入电平）
+    #    例如：soil._percent = inputs.get("moisture", 100)
+    # 2) 调用 firmware 的纯 task 函数（与 main.py 相同的调用方式），用 Mock 充当驱动对象
+    # 3) 读取输出器件（led/buzzer/display/数值）的当前状态，组装 state dict
+    return json.dumps({"moisture": ..., "led": ...})   # state 的 key 须与 preview.json 的 display[].key 一致
+```
+
+约束（强）：
+- **只定义一个入口 `step(inputs_json) -> state_json`**；不写 `while`/`asyncio`/`main()` 守护循环；**不 import machine**。主机负责时钟。
+- **复用 generate 的 Mock 驱动 + 纯 task 函数**，不重复实现业务逻辑：把 inputs 注入 Mock，调用 task，读输出器件状态。task 是无全局状态的纯函数，给定输入 → 产生输出，正适合每 tick 调用。
+- **只用 MicroPython-WASM 自带模块**（`json`/`math`/`random`/`time`）；不 import `machine`/`typing`/CPython-only 库（与 sim 同款浏览器内 MicroPython 运行时）。
+- **确定性**：相同 inputs → 相同 state（除非业务本身随机；预览优先确定性）。
+- `step()` 读取的每个输入名 = `preview.json` 的 `inputs[].key`；`step()` 返回的每个状态名 = `preview.json` 的 `display[].key`。
+
+### `firmware/preview.json` 契约（canvas descriptor — 驱动 Builder 的滑块与读数）
+
+```json
+{
+  "board": {"id": "<board_id>", "label": "<board label>"},
+  "inputs": [
+    {"key": "moisture", "label": "Soil moisture", "icon": "🌱", "kind": "range",
+     "min": 0, "max": 100, "value": 72, "lo": "dry", "hi": "wet"}
+  ],
+  "display": [
+    {"key": "moisture", "label": "Soil moisture", "type": "value", "unit": "%"},
+    {"key": "led", "label": "RGB LED", "type": "led"}
+  ]
+}
+```
+
+- `inputs[]`：每个可交互输入一项，映射到真实传感器 / 输入器件（soil/light/button/switch…）。`kind`：
+  - `range`——滑块，给 `min`/`max`/`value`(初值)/`lo`/`hi`(两端文字)；
+  - `toggle`——开关（`min:0, max:1`），`lo`/`hi` 为两态标签。
+  `key` 必须是 `step()` 读取的输入名。
+- `display[]`：每个要展示的设备状态一项，覆盖每个输出器件 + 关键数值。`type`：
+  - `led`——值为颜色串（`red`/`green`/`amber`/`white`/`off`）；
+  - `buzzer`——值为 `on`/`off`；
+  - `value`——数值（可带 `unit`）。
+  `key` 必须是 `step()` 返回的状态名。
+
+### 校验与自检
+- 写入后用 `browser_validate` `python_syntax` 校验 `preview.py`；用 `generate_quality` 确认 `preview.py` + `preview.json` 存在且非空。
+- LLM 自检（不一致即修复）：`preview.json` 的每个 `inputs[].key` 在 `step()` 中被读取；每个 `display[].key` 在 `step()` 返回的 state 中出现；`inputs[].kind` / `display[].type` 合法。
+- 极少数零输入项目（无可交互输入）：`inputs` 可为 `[]`，但 `step()` 仍须返回有意义的 state（`display` 非空）。
+
 ## Phase 6: LLM 生成测试文件
 
 ### 6A: PC 端单元测试 `test/pc/test_<task>.py`
@@ -541,7 +602,7 @@ Phase 2-7 完成后，LLM 执行最终审查，逐项核验：
 **部署就绪契约（success 必须满足）**：
 
 - `runtime_dependencies.mip`：生成的固件/设备测试需要 mip 包（如设备端 `unittest`）时必须声明，deploy 阶段用 `mip install` 安装，不把 micropython-lib 源码 vendor 进项目。
-- `deploy_plan.source_only` = `firmware/main.py`、`firmware/boot.py`、`firmware/conf.py`（这三个以 `.py` 部署）；`deploy_plan.upload_exclude` = `firmware/drivers/**/mock.py`、`firmware/drivers/**/mock.mpy`。Mock 是测试替身，**绝不作为运行时固件**。
+- `deploy_plan.source_only` = `firmware/main.py`、`firmware/boot.py`、`firmware/conf.py`（这三个以 `.py` 部署）；`deploy_plan.upload_exclude` = `firmware/drivers/**/mock.py`、`firmware/drivers/**/mock.mpy`、`firmware/preview.py`、`firmware/preview.json`。Mock 与 preview 都是浏览器侧测试 / 预览替身，**绝不作为运行时固件**。
 - 设备端测试默认放 `device/tests/`，验证协议/状态/任务/驱动/配置契约，不只是 import smoke。
 - success 不得遗留或提交 CPython 缓存（`__pycache__/`、`*.pyc`）。
 - 语音/传感器/云/状态机等跨 tick 业务流，`generate_plan` 必须声明 `data_flow_contract[]`（producer/consumer/invariant/storage）并为关键数据流生成 contract test。
@@ -566,3 +627,4 @@ Phase 2-7 完成后，LLM 执行最终审查，逐项核验：
 - **设备端测试只用 MPY unittest assert 子集**：支持 `assertEqual`/`assertTrue`/`assertFalse`/`assertIn`/`assertIsInstance`/`assertIsNone`/`assertIsNotNone`/`assertRaises`/`assertAlmostEqual` 等；禁止 `assertLess`/`assertGreater`/`assertNotIn`/`assertRegex`/`assertListEqual` 等 CPython 专属断言
 - **生成固件用 ASCII 注释**（除非项目本就需要非 ASCII）；避免装饰性 box-drawing 或乱码分隔注释
 - **`_thread` 模式**：scaffold 选 thread 模式时，generate 按 `_thread` API 生成 worker 线程 + `allocate_lock` 互斥 + 心跳，阻塞操作放 worker 线程不阻塞主循环（见参考文档 `_thread` 链接）
+- **必产浏览器实时预览（Phase 5.6）**：每次 generate 成功都必须额外写出 `firmware/preview.py`（主机驱动的纯函数 `step(inputs_json)->state_json`，无 `while`/`asyncio`/`import machine`，复用 Mock + 纯 task）和 `firmware/preview.json`（canvas descriptor：`inputs[]` 滑块 / 开关 + `display[]` 设备状态）。两文件 key 互相一致，且并入 `deploy_plan.upload_exclude`（不烧录）。
