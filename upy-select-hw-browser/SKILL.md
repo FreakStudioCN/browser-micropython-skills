@@ -22,14 +22,13 @@ This browser contract preserves the source skill's responsibility, MCU/pin rules
 - `phase_complete`
 
 Validation kinds retained for this phase:
-- `select_hw_manifest`
+- `select_hw_manifest` (includes chip-fact pin sanity: rejects reserved/input-only/non-exposed pins)
 - `manifest_phase`
-- `hardware_sanity`
 
 ## Inputs
 
 - Blockless project id, project store snapshot, and the analyze `manifest_content`.
-- Validation inputs for: `select_hw_manifest`, `manifest_phase`, `hardware_sanity`.
+- Validation inputs for: `select_hw_manifest`, `manifest_phase`.
 
 ## Outputs
 
@@ -41,8 +40,9 @@ Validation kinds retained for this phase:
 1. `file_operation`: read the analyze manifest.
 2. Select MCU + allocate pins + build BOM per the rules below (LLM-driven; see the domain/validate boundary section).
 3. `approval_request`: confirm the board choice when not user-specified.
-4. `browser_validate` (`select_hw_manifest`, `manifest_phase`, `hardware_sanity`): validate the hardware manifest.
-5. `file_operation` + `phase_complete`: persist the hardware plan and hand off to `upy-flash-mpy-firmware-browser`.
+4. `file_operation`: write the hardware plan (mcu + pinout + bom) to `project-manifest.json` **before** validating (the validators read the written snapshot).
+5. `browser_validate` (`select_hw_manifest`, `manifest_phase`): validate the written hardware manifest.
+6. `phase_complete`: hand off to `upy-flash-mpy-firmware-browser`.
 
 ## Runtime State And Partial Results
 
@@ -69,7 +69,7 @@ Validation kinds retained for this phase:
 
 ## Domain Selection vs browser_validate (boundary)
 
-MCU recommendation, firmware verification, and pin allocation are the LLM's job. `browser_validate` performs only the objective subset — hardware-manifest validation (`select_hw_manifest`/`manifest_phase`) and pin/board sanity (`hardware_sanity`). It does **not** choose the board. Blockless Web Builder runs both.
+MCU recommendation, firmware verification, and pin allocation are the LLM's job. `browser_validate` performs only the objective subset — hardware-manifest validation (`select_hw_manifest`/`manifest_phase`), where `select_hw_manifest` also enforces chip-fact pin sanity (rejects reserved/input-only/non-exposed pins). It does **not** choose the board. Blockless Web Builder runs both.
 
 ## 角色定位
 
@@ -77,7 +77,7 @@ MCU recommendation, firmware verification, and pin allocation are the LLM's job.
 
 ## 前置检查
 
-无需本地环境：选型与校验通过 `browser_validate`（`select_hw_manifest`/`manifest_phase`/`hardware_sanity`）完成。
+无需本地环境：选型与校验通过 `browser_validate`（`select_hw_manifest`/`manifest_phase`）完成。
 
 ---
 
@@ -361,7 +361,7 @@ pinout 增加条目：
 
 ### Step 4: 更新 manifest
 
-用 `file_operation` 把硬件方案写入 `project-manifest.json`（经 `browser_validate` 的 `select_hw_manifest` / `manifest_phase` 校验后）。
+用 `file_operation` 把硬件方案写入 `project-manifest.json`，**然后**用 `browser_validate` 的 `select_hw_manifest` / `manifest_phase` 校验（校验读取已写入的快照，务必先写后验）。
 
 --- 写入字段：
 - `phase`: "select-hw"
