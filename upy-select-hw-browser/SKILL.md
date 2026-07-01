@@ -155,26 +155,30 @@ MCU recommendation, firmware verification, and pin allocation are the LLM's job.
 
 ### Step 2: 引脚分配
 
-#### Step 2A: 获取引脚图
+#### Step 2A: 引脚事实来源（服务器提供，权威）
 
-```
-请上传你的开发板引脚图（照片/截图/PDF 均可）。
-搜索 "{MCU型号} pinout" 或 "{MCU型号} 引脚图" 即可找到。
-```
+**绝不向用户索取引脚图，也绝不让用户确认引脚。** 引脚事实由服务器在系统提示中以
+`--- PIN FACTS (server-provided; authoritative) ---` 区块注入，来自芯片级引脚事实表
+（`content/chips/<chip>.json`）加板卡暴露引脚叠加：
 
-若用户说"找不到" → 用 `WebSearch` 搜 `{MCU型号} pinout diagram`，取第一张图给用户确认。
+- `usable_gpio`：每个可用 GPIO 的 `roles`（i2c/spi/uart/gpio_in/gpio_out/pwm/adc/dac…）与 `flags`（strapping/input_only/reserved_repl…）
+- `default_buses`：I2C/SPI/UART 默认总线引脚
+- `reserved_pins`：禁止使用（如 flash 6–11）
+- `exposed_pins`：该板卡实际引出的引脚（值为 `all_chip_gpio` 时用整芯片 GPIO）
+- `silkscreen_aliases`：丝印名 → GPIO
 
-#### Step 2B: LLM 多模态识别
+若 PIN FACTS 缺失或 `authoritative_pin_facts=false`：**不得猜测、不得索取引脚图** ——
+按 `structured_errors`（code `chip_pin_facts_missing`）输出 `status=failed`。
 
-从引脚图中提取：
-- 可用 GPIO 编号列表
-- 硬件 I2C 默认引脚（如 ESP32: I2C0 SCL=22 SDA=21）
-- 硬件 SPI 默认引脚
-- 硬件 UART 默认引脚（标注 UART0 被 REPL 占用）
-- 电源引脚（3.3V, 5V, GND）位置
-- 启动/烧录敏感引脚（如 ESP32: GPIO0/2/5/12/15）
-- 只读引脚（如 ESP32: GPIO34-39）
-- Flash/PSRAM 占用引脚（如 ESP32: GPIO6-11）
+#### Step 2B: 从 PIN FACTS 建立事实集（取代旧的“上传引脚图 + 多模态识图”）
+
+直接从注入的 PIN FACTS 读取事实，不再依赖用户上传：
+- 可用 GPIO 及其 `roles`/`flags`
+- 硬件 I2C/SPI/UART 默认引脚（`default_buses`）
+- 只读引脚（`flags` 含 `input_only`）
+- strapping/boot 引脚（`flags` 含 `strapping`）
+- flash/PSRAM 占用引脚（`reserved_pins`）
+- REPL/USB 串口引脚（`flags` 含 `reserved_repl`）
 
 #### Step 2C: 分配引脚
 
@@ -253,10 +257,9 @@ MCU recommendation, firmware verification, and pin allocation are the LLM's job.
 | PWM 输出 | `pwm` |
 | I2S BCK/WS/DIN/DOUT | `i2s_bck` / `i2s_ws` / `i2s_data_in` / `i2s_data_out` |
 
-**物理引脚编号 (physical_pin) 获取规则：**
-- Pico 系列：GP0=Pin1, GP1=Pin2, ..., GP28=Pin34；3V3(OUT)=Pin36；GND=Pin3/8/13/18/23/28/33/38
-- ESP32 系列：查阅引脚图，标注 GPIO 编号对应的物理引脚编号
-- 其他 MCU：从引脚图/数据手册获取
+**物理引脚编号 (physical_pin) 获取规则：** `physical_pin` 为可选字段。
+- 优先用 PIN FACTS 的 `silkscreen_aliases`（丝印名 → GPIO）标注对应关系
+- 无 alias 数据时**省略** `physical_pin`（不得为此索取或让用户确认引脚图）
 
 #### Step 2D: 电源引脚分配
 
@@ -290,7 +293,7 @@ pinout 增加条目：
 | `flash_psram_occupied` | 禁止使用 | error |
 | `reserved` / `internal_only` | 禁止使用 | error |
 | `usb_serial_pins` | 默认禁止，除非明确不用 USB 串口或用户显式接线 | error/warning |
-| `strapping` / `boot` | 默认避开；必须用时写 warning 交 `pin_plan_review` | warning（strict 为 error） |
+| `strapping` / `boot` | 默认避开；必须用时写 warning 记入 `notes`（无用户确认门） | warning（strict 为 error） |
 | `input_only` | 只能用于输入类 pin | error |
 | `adc_only` | 只能用于 ADC 输入 | error |
 | `adc2_wifi_conflict` | 仅 `type=adc` 且 WiFi 启用时冲突；数字用途可用但须说明 | ADC=error，数字=warning |
@@ -317,14 +320,14 @@ pinout 增加条目：
 **审批安全门**：
 
 - `approval_request`(`board_unavailable`)：用户指定板卡不在库/无 `pin_layout` 时，推荐同系列或功能相似且有 `pin_layout` 的已知板卡，允许改选或手动描述接线。
-- `approval_request`(`pin_plan_review`)：条件可用脚、配置脚硬接、默认总线偏离、板卡资料不足等风险统一进 warnings/notes，由用户在此门确认或改脚后才算整体验收。提醒用户重点核查：默认总线脚是否真实引出且无冲突、`restricted_gpio`/boot/strapping/flash-PSRAM/USB-JTAG-REPL-UART 占用、`onboard_peripherals` 是否真占用且可否释放、外设 VCC/GND/配置脚是 MCU 控制还是硬接电源地、板卡变体/原理图版本/丝印是否一致。GPIO 汇总（`used_gpio` / `unused_gpio` / `restricted_or_occupied_gpio`）必须从完整事实与最终 `pinout` 计算，不得手写静态列表。
+- **不使用 `pin_plan_review` 用户确认门**：自动分配基于服务器注入的权威 PIN FACTS，用户**不确认引脚**。条件可用脚、默认总线偏离、strapping 等风险只写入 `warnings`/`notes`，**不阻塞 success**。GPIO 汇总（`used_gpio` / `unused_gpio` / `restricted_or_occupied_gpio`）必须从 PIN FACTS 与最终 `pinout` 计算，不得手写静态列表。
 
 **审批动作枚举与结构化接线（domain）**：
 
 - `board_unavailable` 互斥动作：`use_recommended_similar`（用推荐的同系列/相似已知板卡）/ `select_known_board`（改选库内其他已知板卡，回 `board_select`）/ `manual_wiring_description`（用户手动描述接线 → partial/checkpoint，等结构化接线）/ `save_partial`。手动接线用数组表达，每条含 `mcu_pin` / `device` / `device_pin` / `signal` / `voltage` / `notes`。
 - `pin_plan_review` 动作：`confirm_pin_plan`（按草案继续）/ `revise_pin_plan`（回 `pin_assignment` 重分配）/ `manual_wiring_description` / `save_partial`。
 - 用户接线约束 `user_pin_constraints[]`：每条含 `device`（须对应 `devices[].name`/`pinout[].device`）/ `device_pin` / `mcu_pin`（`GPIO21` 与 `21` 视为同一脚；电源/地保持 `3V3`/`5V`/`GND`）/ `signal`（映射到 `pinout[].type`）/ 可选 `voltage` / `notes`。合法约束转成 `pinout[].source="user_wiring"` 并同步 `pin_decisions[]`（`decision_type="user_wiring"`）；**缺必填字段不得继续 success，输出 partial、`checkpoint.resume_step=pin_assignment`**；用户指定脚仍须过 board JSON 校验，非法脚不得静默改写。
-- 确认结果写入 `hardware_plan.pin_review`：`approval_id`（固定 `pin_plan_review`）/ `confirmed`（**success 前必须为 `true`**）/ `confirmed_by`、`confirmed_at`（confirmed=true 时必填，真实 UTC ISO-8601，不得用占位时间）/ `source`（`approval_response`/`plugin_ui_confirmed`/`user_confirmed`）/ 可选 `note`。
+- `hardware_plan.pin_review` **不再是 success 的必要条件**：自动分配无需用户确认引脚，**不得**因缺少 `pin_review` 或 `pin_review.confirmed` 而阻塞 success。风险记入 `warnings`/`notes`。
 
 **结构化错误（`structured_errors[]`，写入 `manifest_content`）**：每条含 `code` / `severity` / `message`，可选 `evidence_path`。自由文本不能替代稳定 `code`——下游据 `code` 判定可否继续。
 
@@ -383,6 +386,6 @@ pinout 增加条目：
 
 - **MCU 只推荐 Pico 系列和 ESP32 系列**（除非用户指定其他型号）
 - **固件核验是必须的**——确认有 MPY 固件再继续
-- **引脚分配前必须先看到引脚图**——不依赖内置数据库
+- **引脚分配基于服务器注入的权威 PIN FACTS（芯片级引脚事实表 + 板卡暴露引脚）**——绝不索取、也绝不让用户确认引脚图；PIN FACTS 缺失即 fail-fast（`chip_pin_facts_missing`），绝不猜测
 - **I2C 地址冲突必须检测**——不能把两个同地址器件放同一总线
 - **启动敏感引脚必须避开**

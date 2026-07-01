@@ -147,7 +147,8 @@
       ],
       "browser_validate_kinds": [
         "select_hw_manifest",
-        "manifest_phase"
+        "manifest_phase",
+        "hardware_sanity"
       ],
       "tier": "phase",
       "spine": "project_pipeline",
